@@ -1,45 +1,56 @@
 'use strict';
 /*
- * Guard Patrol sync server
- * ------------------------
+ * 4 Horseman Security — company server + website
+ * ----------------------------------------------
  * One small Node.js program, no third-party dependencies (Node 18+).
- *  - Central officer accounts: badge + PIN sign-in (PINs stored as scrypt hashes), session tokens.
- *  - Receives events from phones (shifts, on-duty locations, scans, reports, messages, admin changes)
- *    and enforces permissions + limits on the server side.
- *  - Phones pull everything new from GET /api/state every 15 seconds.
- *  - Data is kept in DATA_DIR (state.json + one file per report). Point DATA_DIR at a persistent volume.
+ *  - Many companies on one server. Each company has its own administrator, sites, officers, shifts,
+ *    reports and messages, and nothing is shared between companies.
+ *  - The owner company (your own, migrated from earlier versions) is never billed and never deleted.
+ *  - Other companies subscribe on the website: $9.99/month through Stripe Checkout. When the
+ *    subscription ends (cancelled, or payments failed and Stripe gave up), the company is deleted.
+ *  - Sign-in everywhere (Android app, web app, website): company code + badge number + PIN.
+ *  - Serves the website (web/) at / and the full app in the browser (app/) at /app/.
  *
  * Environment variables
  *   PORT              port to listen on (hosting platforms set this automatically)
  *   DATA_DIR          where data is stored. Defaults to the Railway volume path if one is attached, else ./data.
- *                     MUST be a persistent volume in production, or data is lost on every redeploy.
- *   ADMIN_BADGE       administrator badge number on first start (default 1000)
- *   ADMIN_PIN         administrator PIN (4–8 digits). Applied on first start and again whenever this value changes,
- *                     so it doubles as a recovery PIN. If missing on first start, a random PIN is printed to the logs.
- *   SEED_DEMO_SITES   "false" to start with no sites (default: two demo sites you can edit or delete)
- *   ALLOWED_ORIGINS   comma-separated CORS origins (default: the Android app's origin). Use * only for testing.
- *   MAX_SITES         default 4           MAX_PER_SITE     default 20 (officers per site)
- *   MAX_OFFICERS      default MAX_SITES × MAX_PER_SITE (80)   MAX_CHECKPOINTS  default 10 (per site)
- *   SESSION_DAYS      default 30
+ *   ADMIN_PIN         owner-company administrator PIN (4–8 digits). Applied on first start and whenever it changes.
+ *   ADMIN_BADGE       owner-company administrator badge on first start (default 1000)
+ *   OWNER_COMPANY_NAME / OWNER_COMPANY_CODE   owner company name / sign-in code (default "4 Horseman Security" / HORSEMAN)
+ *   STRIPE_SECRET_KEY Stripe secret key (sk_test_… or sk_live_…). Without it the website shows sign-up as unavailable.
+ *   PRICE_CENTS       monthly price in cents (default 999 = $9.99)
+ *   PUBLIC_URL        public address of this server (default: worked out from each request)
+ *   SEED_DEMO_SITES   "false" to start the owner company with no sites
+ *   ALLOWED_ORIGINS   extra CORS origins for the API (the Android app's origin is always allowed)
+ *   MAX_SITES 4 · MAX_PER_SITE 20 · MAX_OFFICERS 80 · MAX_CHECKPOINTS 10 · SESSION_DAYS 30   (limits per company)
  */
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
-const VERSION = '1.1.1';
+const VERSION = '2.0.0';
 const PORT = +process.env.PORT || 8080;
 const DATA_DIR = path.resolve(process.env.DATA_DIR || process.env.RAILWAY_VOLUME_MOUNT_PATH || path.join(__dirname, 'data'));
 const REPORT_DIR = path.join(DATA_DIR, 'reports');
 const STATE_FILE = path.join(DATA_DIR, 'state.json');
+const WEB_DIR = path.join(__dirname, 'web');
+const APP_DIR = path.join(__dirname, 'app');
 const MAX_SITES = +process.env.MAX_SITES || 4;
 const MAX_PER_SITE = +process.env.MAX_PER_SITE || 20;
 const MAX_OFFICERS = +process.env.MAX_OFFICERS || MAX_SITES * MAX_PER_SITE;
 const MAX_CHECKPOINTS = +process.env.MAX_CHECKPOINTS || 10;
 const SESSION_MS = (+process.env.SESSION_DAYS || 30) * 86400000;
 const BODY_LIMIT = 25 * 1024 * 1024;
-const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || 'https://appassets.androidplatform.net')
-  .split(',').map(s => s.trim()).filter(Boolean);
+const OWNER_ID = 'c_owner';
+const OWNER_NAME = process.env.OWNER_COMPANY_NAME || '4 Horseman Security';
+const OWNER_CODE = (process.env.OWNER_COMPANY_CODE || 'HORSEMAN').toUpperCase();
+const STRIPE_KEY = process.env.STRIPE_SECRET_KEY || '';
+const STRIPE_API = process.env.STRIPE_API_BASE || 'https://api.stripe.com';
+const PRICE_CENTS = +process.env.PRICE_CENTS || 999;
+const PRICE_LOOKUP = `horseman_company_monthly_${PRICE_CENTS}`;
+const BILLING_SYNC_MS = (+process.env.BILLING_SYNC_MINUTES || 15) * 60000;
+const ALLOWED_ORIGINS = ['https://appassets.androidplatform.net'].concat((process.env.ALLOWED_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean));
 
 // ---------- helpers ----------
 let lastClock = 0;
@@ -52,6 +63,7 @@ const geo = g => (g && num(g.lat) != null && num(g.lng) != null)
   ? { lat: g.lat, lng: g.lng, acc: num(g.acc) || 0, at: num(g.at) || Date.now() } : null;
 const sha = s => crypto.createHash('sha256').update(s).digest('hex');
 const isPin = p => typeof p === 'string' && /^\d{4,8}$/.test(p);
+const isEmail = e => typeof e === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e) && e.length <= 200;
 function hashPin(pin) {
   const salt = crypto.randomBytes(16).toString('hex');
   return `${salt}:${crypto.scryptSync(pin, salt, 32).toString('hex')}`;
@@ -63,6 +75,9 @@ function checkPin(pin, stored) {
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 const publicUser = u => ({ id: u.id, name: u.name, badge: u.badge, role: u.role, phone: u.phone || '', siteId: u.siteId || '' });
+const publicCompany = C => ({ id: C.id, code: C.code, name: C.name, owner: !!C.owner });
+const CODE_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+const normCode = c => str(c, 20).toUpperCase().replace(/[^A-Z0-9]/g, '');
 
 // ---------- storage ----------
 fs.mkdirSync(REPORT_DIR, { recursive: true });
@@ -71,97 +86,137 @@ function writeAtomic(file, data) {
   fs.writeFileSync(tmp, data);
   fs.renameSync(tmp, file);
 }
+function emptyCompany(id, name, code) {
+  return { id, name, code, createdAt: Date.now(), users: [], sites: [], shifts: {}, scans: [], messages: [], acks: {}, deletedUsers: [] };
+}
+function demoSites() {
+  const t = Date.now();
+  const cp = (sid, list) => list.map(([id, name, instructions]) => ({ id, name, instructions, code: `GP:${sid}:${id}` }));
+  return [
+    { id: 'site1', name: 'Harbor Point Office Park', address: '100 Harbor Point Dr', phone: '', lat: null, lng: null, radius: 200, srvAt: t,
+      orders: [
+        { id: 'o1', title: 'Access control', priority: 'high', updated: t, body: 'All visitors must sign in at the main lobby desk and show photo ID. Issue a visitor badge and record badge number. No tailgating through badge doors.' },
+        { id: 'o2', title: 'Patrol frequency', priority: 'normal', updated: t, body: 'Complete a full exterior and interior tour every 2 hours. Scan every checkpoint. Report lights out, open doors, and hazards.' },
+        { id: 'o3', title: 'Emergency procedures', priority: 'high', updated: t, body: 'Observe and report — do not engage. In an emergency call 911 first, then the site supervisor.' }],
+      checkpoints: cp('site1', [['c1', 'Main lobby desk', 'Check visitor log and badge stock.'], ['c2', 'Loading dock', 'Roll-up door closed and padlocked after 19:00.'], ['c3', 'Parking garage level 2', 'Look for unattended vehicles and lighting outages.']]) },
+    { id: 'site2', name: 'Riverside Apartments', address: '45 Riverside Ave', phone: '', lat: null, lng: null, radius: 250, srvAt: t,
+      orders: [{ id: 'o5', title: 'Residents & guests', priority: 'normal', updated: t, body: 'Be courteous with residents. Guests must be escorted or listed with the leasing office.' }],
+      checkpoints: cp('site2', [['c6', 'Front gate', 'Gate closes fully; keypad working.'], ['c7', 'Pool gate', 'Locked after 22:00.']]) }];
+}
 function seedState() {
   const pin = isPin(process.env.ADMIN_PIN) ? process.env.ADMIN_PIN : String(crypto.randomInt(100000, 999999));
   if (!isPin(process.env.ADMIN_PIN)) {
     console.log('\n==================================================================');
-    console.log(`  No valid ADMIN_PIN set. Administrator badge ${process.env.ADMIN_BADGE || '1000'}, temporary PIN: ${pin}`);
-    console.log('  Sign in and change it under More → My profile & PIN.');
+    console.log(`  No valid ADMIN_PIN set. Company ${OWNER_CODE}, administrator badge ${process.env.ADMIN_BADGE || '1000'}, temporary PIN: ${pin}`);
     console.log('==================================================================\n');
   }
-  const t = Date.now();
-  const st = {
-    v: 1,
-    users: [{ id: 'u_admin', name: 'Administrator', badge: String(process.env.ADMIN_BADGE || '1000'), role: 'admin', phone: '', pinHash: hashPin(pin), srvAt: t }],
-    sites: [], shifts: {}, scans: [], messages: [], acks: {}, sessions: {}, seenEvents: []
-  };
-  if (process.env.SEED_DEMO_SITES !== 'false') {
-    const cp = (sid, list) => list.map(([id, name, instructions]) => ({ id, name, instructions, code: `GP:${sid}:${id}` }));
-    st.sites.push(
-      { id: 'site1', name: 'Harbor Point Office Park', address: '100 Harbor Point Dr', phone: '', lat: null, lng: null, radius: 200, srvAt: t,
-        orders: [
-          { id: 'o1', title: 'Access control', priority: 'high', updated: t, body: 'All visitors must sign in at the main lobby desk and show photo ID. Issue a visitor badge and record badge number. No tailgating through badge doors.' },
-          { id: 'o2', title: 'Patrol frequency', priority: 'normal', updated: t, body: 'Complete a full exterior and interior tour every 2 hours. Scan every checkpoint. Report lights out, open doors, and hazards.' },
-          { id: 'o3', title: 'Emergency procedures', priority: 'high', updated: t, body: 'Observe and report — do not engage. In an emergency call 911 first, then the site supervisor.' }],
-        checkpoints: cp('site1', [['c1', 'Main lobby desk', 'Check visitor log and badge stock.'], ['c2', 'Loading dock', 'Roll-up door closed and padlocked after 19:00.'], ['c3', 'Parking garage level 2', 'Look for unattended vehicles and lighting outages.']]) },
-      { id: 'site2', name: 'Riverside Apartments', address: '45 Riverside Ave', phone: '', lat: null, lng: null, radius: 250, srvAt: t,
-        orders: [{ id: 'o5', title: 'Residents & guests', priority: 'normal', updated: t, body: 'Be courteous with residents. Guests must be escorted or listed with the leasing office.' }],
-        checkpoints: cp('site2', [['c6', 'Front gate', 'Gate closes fully; keypad working.'], ['c7', 'Pool gate', 'Locked after 22:00.']]) });
-  }
-  return st;
+  const C = emptyCompany(OWNER_ID, OWNER_NAME, OWNER_CODE); C.owner = true;
+  C.users.push({ id: 'u_admin', name: 'Administrator', badge: String(process.env.ADMIN_BADGE || '1000'), role: 'admin', phone: '', pinHash: hashPin(pin), srvAt: Date.now() });
+  if (process.env.SEED_DEMO_SITES !== 'false') C.sites = demoSites();
+  return { v: 2, companies: { [OWNER_ID]: C }, sessions: {}, seenEvents: [], pending: {}, adminPinApplied: isPin(process.env.ADMIN_PIN) ? hashPin(process.env.ADMIN_PIN) : undefined };
+}
+// Version 1 kept a single company at the top level: it becomes the owner company, unchanged.
+function migrate(S) {
+  if (S.v === 2) return S;
+  const C = emptyCompany(OWNER_ID, OWNER_NAME, OWNER_CODE); C.owner = true;
+  for (const k of ['users', 'sites', 'shifts', 'scans', 'messages', 'acks', 'deletedUsers']) if (S[k] !== undefined) C[k] = S[k];
+  const sessions = {};
+  for (const [k, s] of Object.entries(S.sessions || {})) sessions[k] = { ...s, companyId: OWNER_ID };
+  console.log(`Migrated single-company data to owner company ${OWNER_CODE} (${C.users.length} account(s)).`);
+  return { v: 2, companies: { [OWNER_ID]: C }, sessions, seenEvents: S.seenEvents || [], pending: {}, adminPinApplied: S.adminPinApplied };
 }
 let S;
-try { S = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8')); }
+try { S = migrate(JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))); writeAtomic(STATE_FILE, JSON.stringify(S)); }
 catch (e) {
   if (e.code !== 'ENOENT') { console.error('Cannot read', STATE_FILE, e.message); process.exit(1); }
-  S = seedState(); S.adminPinApplied = isPin(process.env.ADMIN_PIN) ? hashPin(process.env.ADMIN_PIN) : undefined;
-  writeAtomic(STATE_FILE, JSON.stringify(S));
+  S = seedState(); writeAtomic(STATE_FILE, JSON.stringify(S));
 }
-// ADMIN_PIN in the hosting settings is the administrator's recovery PIN: whenever its value changes,
-// the administrator account is reset to it on the next start. (A PIN changed in the app stays until then.)
+S.pending = S.pending || {};
+const owner = () => S.companies[OWNER_ID];
+if (owner() && owner().code !== OWNER_CODE && !Object.values(S.companies).some(c => c.code === OWNER_CODE)) owner().code = OWNER_CODE;
+// ADMIN_PIN is the owner administrator's recovery PIN: whenever its value changes, the owner administrator
+// account is reset to it on the next start. (A PIN changed in the app stays until then.)
 if (isPin(process.env.ADMIN_PIN) && !checkPin(process.env.ADMIN_PIN, S.adminPinApplied)) {
-  const admin = S.users.find(u => u.role === 'admin');
+  const admin = owner()?.users.find(u => u.role === 'admin');
   if (admin) {
     admin.pinHash = hashPin(process.env.ADMIN_PIN); admin.srvAt = Date.now();
-    for (const [k, v] of Object.entries(S.sessions || {})) if (v.userId === admin.id) delete S.sessions[k];
+    for (const [k, v] of Object.entries(S.sessions)) if (v.userId === admin.id) delete S.sessions[k];
     S.adminPinApplied = hashPin(process.env.ADMIN_PIN);
     writeAtomic(STATE_FILE, JSON.stringify(S));
-    console.log(`Administrator PIN reset from ADMIN_PIN (badge ${admin.badge}).`);
+    console.log(`Administrator PIN reset from ADMIN_PIN (company ${owner().code}, badge ${admin.badge}).`);
   }
 }
 const seen = new Set(S.seenEvents || []);
 const reports = new Map();
 for (const f of fs.readdirSync(REPORT_DIR)) {
   if (!f.endsWith('.json')) continue;
-  try { const r = JSON.parse(fs.readFileSync(path.join(REPORT_DIR, f), 'utf8')); reports.set(r.id, r); }
+  try { const r = JSON.parse(fs.readFileSync(path.join(REPORT_DIR, f), 'utf8')); r.companyId = r.companyId || OWNER_ID; reports.set(r.id, r); }
   catch (e) { console.error('Skipping unreadable report', f); }
 }
 let saveTimer = null;
 function save() {
   if (saveTimer) return;
-  saveTimer = setTimeout(() => {
-    saveTimer = null;
-    S.seenEvents = [...seen].slice(-20000);
-    writeAtomic(STATE_FILE, JSON.stringify(S));
-  }, 300);
+  saveTimer = setTimeout(() => { saveTimer = null; S.seenEvents = [...seen].slice(-20000); writeAtomic(STATE_FILE, JSON.stringify(S)); }, 300);
 }
-function flush() { if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; S.seenEvents = [...seen].slice(-20000); writeAtomic(STATE_FILE, JSON.stringify(S)); } }
-function saveReport(r) { writeAtomic(path.join(REPORT_DIR, `${r.id.replace(/[^\w-]/g, '_')}.json`), JSON.stringify(r)); }
+function flush() { if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; } S.seenEvents = [...seen].slice(-20000); writeAtomic(STATE_FILE, JSON.stringify(S)); }
+const reportFile = r => path.join(REPORT_DIR, `${r.id.replace(/[^\w-]/g, '_')}.json`);
+function saveReport(r) { writeAtomic(reportFile(r), JSON.stringify(r)); }
+
+// ---------- companies ----------
+const companyByCode = code => Object.values(S.companies).find(c => c.code === code);
+function newCode() {
+  for (;;) {
+    let c = ''; for (let i = 0; i < 6; i++) c += CODE_CHARS[crypto.randomInt(CODE_CHARS.length)];
+    if (!companyByCode(c)) return c;
+  }
+}
+function createCompany({ name, adminName, email, pinHash, billing }) {
+  const id = 'c' + crypto.randomUUID().replace(/-/g, '').slice(0, 16);
+  const C = emptyCompany(id, str(name, 120) || 'Security company', newCode());
+  C.email = str(email, 200); C.billing = billing || null;
+  C.users.push({ id: 'u_admin', name: str(adminName, 120) || 'Administrator', badge: '1000', role: 'admin', phone: '', pinHash, srvAt: clock() });
+  C.messages.push({ id: 'm' + crypto.randomUUID(), channel: 'dispatch', from: 'system', fromName: 'System', system: true, at: Date.now(), srvAt: clock(),
+    text: `Welcome to ${C.name}. Your administrator can add sites, guard-tour locations and officers under More.` });
+  S.companies[id] = C; flush();
+  console.log(`Company created: ${C.name} (${C.code})`);
+  return C;
+}
+function deleteCompany(C, why) {
+  if (!C || C.owner) return;
+  delete S.companies[C.id];
+  for (const [k, s] of Object.entries(S.sessions)) if (s.companyId === C.id) delete S.sessions[k];
+  for (const r of [...reports.values()]) if (r.companyId === C.id) { reports.delete(r.id); try { fs.unlinkSync(reportFile(r)); } catch (e) { } }
+  for (const [k, p] of Object.entries(S.pending)) if (p.companyId === C.id) delete S.pending[k];
+  flush();
+  console.log(`Company deleted: ${C.name} (${C.code}) — ${why}`);
+}
 
 // ---------- auth ----------
-const userById = id => S.users.find(u => u.id === id);
+const userById = (C, id) => C.users.find(u => u.id === id);
 function authUser(req) {
   const m = /^Bearer (.+)$/.exec(req.headers.authorization || '');
   if (!m) return null;
   const s = S.sessions[sha(m[1])];
   if (!s || s.exp < Date.now()) return null;
-  return userById(s.userId) || null;
+  const C = S.companies[s.companyId || OWNER_ID]; if (!C) return null;
+  const u = userById(C, s.userId);
+  return u ? { C, u, tokenHash: sha(m[1]) } : null;
 }
-function revokeSessions(userId, exceptTokenHash) {
-  for (const [k, s] of Object.entries(S.sessions)) if (s.userId === userId && k !== exceptTokenHash) delete S.sessions[k];
+function revokeSessions(C, userId, exceptTokenHash) {
+  for (const [k, s] of Object.entries(S.sessions)) if ((s.companyId || OWNER_ID) === C.id && s.userId === userId && k !== exceptTokenHash) delete S.sessions[k];
 }
 const attempts = new Map(); // key -> {n, until}
-function throttle(key) {
+function throttle(key, max = 5, mins = 5) {
   const a = attempts.get(key);
   if (a && a.until > Date.now()) fail(429, 'Too many attempts. Try again in a few minutes.');
 }
-function failed(key) {
+function failed(key, max = 5, mins = 5) {
   const a = attempts.get(key) || { n: 0, until: 0 };
-  a.n++; if (a.n >= 5) { a.until = Date.now() + 5 * 60000; a.n = 0; }
+  a.n++; if (a.n >= max) { a.until = Date.now() + mins * 60000; a.n = 0; }
   attempts.set(key, a);
 }
 
-// ---------- event handlers (server-side rules) ----------
+// ---------- event handlers (server-side rules, always within one company) ----------
 const isAdmin = u => u.role === 'admin';
 const isSup = u => u.role === 'admin' || u.role === 'supervisor';
 function sanitizeSite(d) {
@@ -177,9 +232,9 @@ function sanitizeSite(d) {
     lat: num(d.lat), lng: num(d.lng), radius: Math.min(5000, Math.max(25, num(d.radius) || 200)), orders, checkpoints, srvAt: clock() };
 }
 const H = {
-  shift(u, d) {
+  shift(C, u, d) {
     const id = str(d.id, 80) || fail(400, 'Shift id missing');
-    const cur = S.shifts[id];
+    const cur = C.shifts[id];
     if ((cur ? cur.userId : d.userId) !== u.id) fail(403, 'You can only record your own shifts');
     // Officers check in only at their assigned site (supervisors and the administrator may cover any site).
     if (!cur && u.role === 'guard' && str(d.siteId, 80) !== u.siteId) fail(403, 'You can only check in at your assigned site');
@@ -189,31 +244,31 @@ const H = {
       outAt: num(d.outAt), outGeo: geo(d.outGeo), notes: str(d.notes, 2000), round: num(d.round) || 1, srvAt: clock()
     });
     if (geo(d.lastGeo) && !s.lastGeo) s.lastGeo = geo(d.lastGeo);
-    S.shifts[id] = s;
+    C.shifts[id] = s;
   },
-  location(u, d) {
-    const s = S.shifts[str(d.shiftId, 80)];
+  location(C, u, d) {
+    const s = C.shifts[str(d.shiftId, 80)];
     // Monitoring is on-shift only: positions for a finished (or someone else's) shift are discarded.
     if (!s || s.userId !== u.id || s.outAt) return;
     const g = geo(d); if (!g) return;
     s.lastGeo = g; s.track = (s.track || []).concat(g).slice(-500); s.srvAt = clock();
   },
-  scan(u, d) {
-    const shift = S.shifts[str(d.shiftId, 80)];
+  scan(C, u, d) {
+    const shift = C.shifts[str(d.shiftId, 80)];
     if (!shift || shift.userId !== u.id) fail(403, 'Scan does not belong to your shift');
-    S.scans.push({ id: str(d.id, 80), shiftId: shift.id, userId: u.id, siteId: str(d.siteId, 80), cpId: str(d.cpId, 80), at: num(d.at), geo: geo(d.geo),
+    C.scans.push({ id: str(d.id, 80), shiftId: shift.id, userId: u.id, siteId: str(d.siteId, 80), cpId: str(d.cpId, 80), at: num(d.at), geo: geo(d.geo),
       status: d.status === 'issue' ? 'issue' : 'clear', note: str(d.note, 500), srvAt: clock() });
-    if (S.scans.length > 50000) S.scans.splice(0, S.scans.length - 50000);
+    if (C.scans.length > 50000) C.scans.splice(0, C.scans.length - 50000);
     shift.lastScanAt = num(d.at) || Date.now(); shift.srvAt = clock();
   },
-  report(u, d) {
+  report(C, u, d) {
     const id = str(d.id, 80) || fail(400, 'Report id missing');
     if (reports.has(id)) return; // already received
     const type = ['incident', 'dar', 'maintenance'].includes(d.type) ? d.type : fail(400, 'Unknown report type');
     const photos = (Array.isArray(d.photos) ? d.photos : []).filter(p => typeof p === 'string' && p.startsWith('data:image/') && p.length < 4e6).slice(0, 6);
     const t = clock();
     const r = {
-      id, type, to: 'admin', userId: u.id, userName: u.name, userRole: u.role, shiftId: str(d.shiftId, 80) || null, siteId: str(d.siteId, 80),
+      id, companyId: C.id, type, to: 'admin', userId: u.id, userName: u.name, userRole: u.role, shiftId: str(d.shiftId, 80) || null, siteId: str(d.siteId, 80),
       createdAt: num(d.createdAt) || t, occurredAt: num(d.occurredAt) || t, geo: geo(d.geo), photos,
       category: str(d.category, 80), severity: str(d.severity, 20), location: str(d.location, 300), description: str(d.description, 10000),
       persons: str(d.persons, 5000), actions: str(d.actions, 5000), authorities: str(d.authorities, 20), caseNo: str(d.caseNo, 80),
@@ -222,88 +277,156 @@ const H = {
     };
     reports.set(id, r); saveReport(r);
   },
-  reportSeen(u, d) {
+  reportSeen(C, u, d) {
     if (!isAdmin(u)) fail(403, 'Administrator only');
-    const r = reports.get(str(d.id, 80)); if (!r || r.adminSeenAt) return;
+    const r = reports.get(str(d.id, 80)); if (!r || r.companyId !== C.id || r.adminSeenAt) return;
     r.adminSeenAt = num(d.at) || Date.now(); r.updatedAt = clock(); saveReport(r);
   },
-  reportReviewed(u, d) {
+  reportReviewed(C, u, d) {
     if (!isAdmin(u)) fail(403, 'Administrator only');
-    const r = reports.get(str(d.id, 80)); if (!r) fail(404, 'Report not found');
+    const r = reports.get(str(d.id, 80)); if (!r || r.companyId !== C.id) fail(404, 'Report not found');
     Object.assign(r, { reviewedAt: num(d.reviewedAt) || Date.now(), reviewedBy: u.name, reviewNote: str(d.reviewNote, 1000), adminSeenAt: r.adminSeenAt || Date.now(), updatedAt: clock() });
     saveReport(r);
   },
-  message(u, d) {
+  message(C, u, d) {
     const id = str(d.id, 80) || fail(400, 'Message id missing');
-    if (S.messages.some(m => m.id === id)) return;
+    if (C.messages.some(m => m.id === id)) return;
     const channel = str(d.channel, 120);
     const system = !!d.system;
     if (channel === 'admin' && !system) fail(403, 'The report-alert channel is read-only');
     if (!['admin', 'dispatch'].includes(channel) && !channel.startsWith('site:')) fail(400, 'Unknown channel');
-    S.messages.push({ id, channel, from: system ? 'system' : u.id, fromName: system ? 'System' : u.name, text: str(d.text, 2000),
+    C.messages.push({ id, channel, from: system ? 'system' : u.id, fromName: system ? 'System' : u.name, text: str(d.text, 2000),
       at: num(d.at) || Date.now(), system, reportId: d.reportId ? str(d.reportId, 80) : undefined, srvAt: clock() });
-    if (S.messages.length > 20000) S.messages.splice(0, S.messages.length - 20000);
+    if (C.messages.length > 20000) C.messages.splice(0, C.messages.length - 20000);
   },
-  ack(u, d) {
-    const a = S.acks[u.id] = S.acks[u.id] || {};
+  ack(C, u, d) {
+    const a = C.acks[u.id] = C.acks[u.id] || {};
     for (const o of Array.isArray(d.orders) ? d.orders : []) if (o && o.id) a[str(o.id, 80)] = num(o.version);
   },
-  user(u, d, tokenHash) {
+  user(C, u, d, tokenHash) {
     const pin = d.pin == null || d.pin === '' ? null : String(d.pin);
     if (pin && !isPin(pin)) fail(400, 'PIN must be 4–8 digits');
-    let t = userById(str(d.id, 80));
+    let t = userById(C, str(d.id, 80));
     if (t && t.id === u.id && !isAdmin(u)) { // officers may update their own profile
       t.name = str(d.name, 120) || t.name; t.phone = str(d.phone, 40);
-      if (pin) { t.pinHash = hashPin(pin); revokeSessions(t.id, tokenHash); }
+      if (pin) { t.pinHash = hashPin(pin); revokeSessions(C, t.id, tokenHash); }
       t.srvAt = clock(); return;
     }
     if (!isAdmin(u)) fail(403, 'Only the administrator can add or change officers');
     const badge = str(d.badge, 20).trim();
     if (!badge) fail(400, 'Badge number required');
-    if (S.users.some(x => x.badge === badge && x.id !== (t && t.id))) fail(409, `Badge ${badge} is already in use`);
+    if (C.users.some(x => x.badge === badge && x.id !== (t && t.id))) fail(409, `Badge ${badge} is already in use`);
     const staff = !t || t.role !== 'admin';
     const siteId = staff ? str(d.siteId, 80) : undefined;
     if (staff) {
-      if (!S.sites.some(s => s.id === siteId)) fail(400, 'Choose the site this officer is assigned to');
-      if ((!t || siteId !== t.siteId) && S.users.filter(x => x.role !== 'admin' && x.siteId === siteId).length >= MAX_PER_SITE)
+      if (!C.sites.some(s => s.id === siteId)) fail(400, 'Choose the site this officer is assigned to');
+      if ((!t || siteId !== t.siteId) && C.users.filter(x => x.role !== 'admin' && x.siteId === siteId).length >= MAX_PER_SITE)
         fail(409, `Each site can have up to ${MAX_PER_SITE} officers`);
-      const onDuty = t && Object.values(S.shifts).find(s => s.userId === t.id && !s.outAt);
+      const onDuty = t && Object.values(C.shifts).find(s => s.userId === t.id && !s.outAt);
       if (onDuty && onDuty.siteId !== siteId && t.role === 'guard' && d.role !== 'supervisor') fail(409, `${t.name} is on duty and must check out before changing site`);
     }
     if (!t) {
-      if (S.users.filter(x => x.role !== 'admin').length >= MAX_OFFICERS) fail(409, `Limit of ${MAX_OFFICERS} officer accounts reached`);
+      if (C.users.filter(x => x.role !== 'admin').length >= MAX_OFFICERS) fail(409, `Limit of ${MAX_OFFICERS} officer accounts reached`);
       if (!pin) fail(400, 'A PIN is required for new officers');
       t = { id: str(d.id, 80) || 'u' + crypto.randomUUID(), role: 'guard' };
-      S.users.push(t);
+      C.users.push(t);
     }
     t.name = str(d.name, 120) || t.name || 'Officer'; t.badge = badge; t.phone = str(d.phone, 40);
     if (t.role !== 'admin') { t.role = d.role === 'supervisor' ? 'supervisor' : 'guard'; t.siteId = siteId; }
-    if (pin) { t.pinHash = hashPin(pin); revokeSessions(t.id, tokenHash); }
+    if (pin) { t.pinHash = hashPin(pin); revokeSessions(C, t.id, tokenHash); }
     t.srvAt = clock();
   },
-  userDeleted(u, d) {
+  userDeleted(C, u, d) {
     if (!isAdmin(u)) fail(403, 'Only the administrator can remove officers');
-    const t = userById(str(d.id, 80)); if (!t) return;
+    const t = userById(C, str(d.id, 80)); if (!t) return;
     if (t.role === 'admin') fail(403, 'The administrator account cannot be removed');
-    if (Object.values(S.shifts).some(s => s.userId === t.id && !s.outAt)) fail(409, `${t.name} is on duty and must check out first`);
-    S.users = S.users.filter(x => x.id !== t.id); revokeSessions(t.id);
-    S.deletedUsers = (S.deletedUsers || []).concat({ id: t.id, srvAt: clock() }).slice(-1000);
+    if (Object.values(C.shifts).some(s => s.userId === t.id && !s.outAt)) fail(409, `${t.name} is on duty and must check out first`);
+    C.users = C.users.filter(x => x.id !== t.id); revokeSessions(C, t.id);
+    C.deletedUsers = (C.deletedUsers || []).concat({ id: t.id, srvAt: clock() }).slice(-1000);
   },
-  site(u, d) {
+  site(C, u, d) {
     if (!isAdmin(u)) fail(403, 'Only the administrator can change sites');
     const s = sanitizeSite(d);
-    const i = S.sites.findIndex(x => x.id === s.id);
-    if (i < 0 && S.sites.length >= MAX_SITES) fail(409, `Limit of ${MAX_SITES} sites reached`);
-    if (i >= 0) S.sites[i] = s; else S.sites.push(s);
+    const i = C.sites.findIndex(x => x.id === s.id);
+    if (i < 0 && C.sites.length >= MAX_SITES) fail(409, `Limit of ${MAX_SITES} sites reached`);
+    if (i >= 0) C.sites[i] = s; else C.sites.push(s);
   },
-  siteDeleted(u, d) {
+  siteDeleted(C, u, d) {
     if (!isAdmin(u)) fail(403, 'Only the administrator can delete sites');
     const id = str(d.id, 80);
-    if (Object.values(S.shifts).some(s => s.siteId === id && !s.outAt)) fail(409, 'An officer is checked in at this site');
-    if (S.users.some(x => x.role !== 'admin' && x.siteId === id)) fail(409, 'Move the officers assigned to this site to another site first');
-    S.sites = S.sites.filter(x => x.id !== id);
+    if (Object.values(C.shifts).some(s => s.siteId === id && !s.outAt)) fail(409, 'An officer is checked in at this site');
+    if (C.users.some(x => x.role !== 'admin' && x.siteId === id)) fail(409, 'Move the officers assigned to this site to another site first');
+    C.sites = C.sites.filter(x => x.id !== id);
   }
 };
+
+// ---------- Stripe (subscriptions) ----------
+function formEncode(obj, prefix, out = []) {
+  for (const [k, v] of Object.entries(obj)) {
+    if (v === undefined || v === null) continue;
+    const key = prefix ? `${prefix}[${k}]` : k;
+    if (typeof v === 'object') formEncode(v, key, out);
+    else out.push(`${encodeURIComponent(key)}=${encodeURIComponent(v)}`);
+  }
+  return out;
+}
+async function stripe(method, p, params) {
+  if (!STRIPE_KEY) fail(503, 'Online sign-up is not available yet. Please try again later.');
+  const q = params ? formEncode(params).join('&') : '';
+  const r = await fetch(STRIPE_API + p + (method === 'GET' && q ? `?${q}` : ''), {
+    method, body: method === 'GET' ? undefined : q,
+    headers: { Authorization: `Bearer ${STRIPE_KEY}`, 'Content-Type': 'application/x-www-form-urlencoded', 'Stripe-Version': '2024-06-20' }
+  });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) { const e = new HttpError(r.status === 404 ? 404 : 502, j.error?.message || `Payment service error (${r.status})`); e.stripe = j.error; throw e; }
+  return j;
+}
+let priceId = null;
+async function monthlyPrice() {
+  if (priceId) return priceId;
+  const found = await stripe('GET', '/v1/prices', { lookup_keys: [PRICE_LOOKUP], active: 'true', limit: 1 });
+  if (found.data && found.data[0]) return (priceId = found.data[0].id);
+  const product = await stripe('POST', '/v1/products', { name: '4 Horseman Security — company subscription',
+    description: `Guard management for up to ${MAX_SITES} sites and ${MAX_OFFICERS} officers` });
+  const price = await stripe('POST', '/v1/prices', { product: product.id, unit_amount: PRICE_CENTS, currency: 'usd', recurring: { interval: 'month' }, lookup_key: PRICE_LOOKUP });
+  console.log(`Created Stripe price ${price.id} ($${(PRICE_CENTS / 100).toFixed(2)}/month)`);
+  return (priceId = price.id);
+}
+const billingOf = sub => ({ customer: typeof sub.customer === 'string' ? sub.customer : sub.customer?.id, subscription: sub.id, status: sub.status,
+  periodEnd: sub.current_period_end ? sub.current_period_end * 1000 : null, cancelAtPeriodEnd: !!sub.cancel_at_period_end, checkedAt: Date.now() });
+const ENDED = ['canceled', 'incomplete_expired', 'unpaid'];
+// Completes a paid sign-up exactly once: creates the company and its administrator.
+async function completeSignup(p) {
+  if (p.companyId && S.companies[p.companyId]) return S.companies[p.companyId];
+  const cs = await stripe('GET', `/v1/checkout/sessions/${encodeURIComponent(p.sessionId)}`, { expand: ['subscription'] });
+  if (cs.client_reference_id !== p.id || cs.status !== 'complete' || !cs.subscription) return null;
+  const sub = typeof cs.subscription === 'string' ? await stripe('GET', `/v1/subscriptions/${cs.subscription}`) : cs.subscription;
+  if (!['active', 'trialing'].includes(sub.status)) return null;
+  if (p.companyId && S.companies[p.companyId]) return S.companies[p.companyId];
+  const C = createCompany({ name: p.companyName, adminName: p.adminName, email: p.email, pinHash: p.pinHash, billing: billingOf(sub) });
+  p.companyId = C.id; delete p.pinHash; flush();
+  return C;
+}
+async function refreshBilling(C) {
+  if (C.owner || !C.billing?.subscription) return;
+  const sub = await stripe('GET', `/v1/subscriptions/${encodeURIComponent(C.billing.subscription)}`);
+  C.billing = billingOf(sub); save();
+  if (ENDED.includes(sub.status)) deleteCompany(C, `subscription ${sub.status}`);
+}
+let syncing = false;
+async function billingSync() {
+  if (!STRIPE_KEY || syncing) return;
+  syncing = true;
+  try {
+    for (const C of Object.values(S.companies)) { try { await refreshBilling(C); } catch (e) { console.error('Billing check failed for', C.code, e.message); } }
+    for (const p of Object.values(S.pending)) {
+      const age = Date.now() - p.createdAt;
+      if (!p.companyId && p.sessionId && age < 2 * 86400000) { try { await completeSignup(p); } catch (e) { } }
+      if (age > 7 * 86400000) delete S.pending[p.id];
+    }
+    save();
+  } finally { syncing = false; }
+}
 
 // ---------- HTTP ----------
 function cors(req, res) {
@@ -316,10 +439,10 @@ function cors(req, res) {
     res.setHeader('Access-Control-Max-Age', '86400');
   }
 }
+const SECURITY_HEADERS = { 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'same-origin', 'X-Frame-Options': 'DENY' };
 function send(res, status, obj) {
-  const body = JSON.stringify(obj);
-  res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' });
-  res.end(body);
+  res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', ...SECURITY_HEADERS });
+  res.end(JSON.stringify(obj));
 }
 function readJson(req) {
   return new Promise((resolve, reject) => {
@@ -330,36 +453,91 @@ function readJson(req) {
   });
 }
 const ip = req => (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket.remoteAddress;
+const baseUrl = req => (process.env.PUBLIC_URL || `${(req.headers['x-forwarded-proto'] || 'http').split(',')[0]}://${req.headers['x-forwarded-host'] || req.headers.host}`).replace(/\/+$/, '');
+
+const TYPES = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.svg': 'image/svg+xml',
+  '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.ico': 'image/x-icon', '.json': 'application/json', '.mp4': 'video/mp4', '.txt': 'text/plain; charset=utf-8' };
+const PAGES = { '/': 'index.html', '/signup': 'signup.html', '/signup/success': 'success.html', '/login': 'login.html', '/account': 'account.html', '/terms': 'terms.html', '/privacy': 'privacy.html' };
+function sendFile(res, dir, rel, status = 200) {
+  const file = path.join(dir, path.normalize('/' + rel).slice(1));
+  if (!file.startsWith(dir + path.sep)) return false;
+  let data; try { data = fs.readFileSync(file); } catch (e) { return false; }
+  const ext = path.extname(file).toLowerCase();
+  res.writeHead(status, { 'Content-Type': TYPES[ext] || 'application/octet-stream', 'Cache-Control': ext === '.html' || ext === '.js' || ext === '.css' ? 'no-cache' : 'public, max-age=86400', ...SECURITY_HEADERS });
+  res.end(data); return true;
+}
 
 async function route(req, res) {
   const url = new URL(req.url, 'http://x');
   const p = url.pathname.replace(/\/+$/, '') || '/';
   if (req.method === 'OPTIONS') { res.writeHead(204); return res.end(); }
 
-  if (req.method === 'GET' && p === '/') {
-    res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
-    return res.end(`Guard Patrol sync server ${VERSION} is running.\nEnter this address in the app: More → Sync, or "Company server" on the sign-in screen.\n`);
+  // ----- website and web app -----
+  if (req.method === 'GET' && !p.startsWith('/api/')) {
+    if (PAGES[p] && sendFile(res, WEB_DIR, PAGES[p])) return;
+    if (p.startsWith('/assets/') && sendFile(res, WEB_DIR, p.slice(8))) return;
+    if (p === '/app' && !url.pathname.endsWith('/')) { res.writeHead(302, { Location: '/app/' + url.search }); return res.end(); }
+    if (p === '/app' && sendFile(res, APP_DIR, 'index.html')) return;
+    if (p.startsWith('/app/') && sendFile(res, APP_DIR, p.slice(5))) return;
+    if (sendFile(res, WEB_DIR, '404.html', 404)) return;
+    res.writeHead(404, { 'Content-Type': 'text/plain' }); return res.end('Not found');
   }
+
   if (req.method === 'GET' && p === '/api/health') return send(res, 200, { ok: true, server: 'guard-patrol', version: VERSION });
+  if (req.method === 'GET' && p === '/api/plan') return send(res, 200, { price: PRICE_CENTS, currency: 'usd', interval: 'month', signupOpen: !!STRIPE_KEY,
+    limits: { sites: MAX_SITES, officersPerSite: MAX_PER_SITE, officers: MAX_OFFICERS, tourLocationsPerSite: MAX_CHECKPOINTS } });
+
+  // ----- sign-up: details → Stripe Checkout → company created once payment succeeds -----
+  if (req.method === 'POST' && p === '/api/signup') {
+    const b = await readJson(req);
+    const key = `signup|${ip(req)}`; throttle(key);
+    const companyName = str(b.companyName, 120).trim(), adminName = str(b.adminName, 120).trim(), email = str(b.email, 200).trim(), pin = str(b.pin, 20);
+    if (companyName.length < 2) fail(400, 'Enter your company name');
+    if (adminName.length < 2) fail(400, 'Enter your name');
+    if (!isEmail(email)) fail(400, 'Enter a valid email address');
+    if (!isPin(pin)) fail(400, 'Choose a PIN of 4–8 digits');
+    failed(key, 10, 60); // at most 10 checkout attempts per hour from one address
+    const price = await monthlyPrice();
+    const id = 'p' + crypto.randomUUID().replace(/-/g, '');
+    const base = baseUrl(req);
+    const cs = await stripe('POST', '/v1/checkout/sessions', {
+      mode: 'subscription', line_items: [{ price, quantity: 1 }], client_reference_id: id, customer_email: email,
+      success_url: `${base}/signup/success?session_id={CHECKOUT_SESSION_ID}`, cancel_url: `${base}/signup?canceled=1`,
+      metadata: { pending: id, company: companyName }, subscription_data: { metadata: { pending: id, company: companyName } }
+    });
+    S.pending[id] = { id, sessionId: cs.id, companyName, adminName, email, pinHash: hashPin(pin), createdAt: Date.now() };
+    save();
+    return send(res, 200, { url: cs.url });
+  }
+  if (req.method === 'GET' && p === '/api/signup/complete') {
+    const sid = str(url.searchParams.get('session_id'), 300);
+    const pend = Object.values(S.pending).find(x => x.sessionId === sid);
+    if (!pend) fail(404, 'We could not find this sign-up. If you were charged, contact support.');
+    const C = await completeSignup(pend);
+    if (!C) return send(res, 202, { pending: true });
+    return send(res, 200, { company: publicCompany(C), badge: C.users.find(u => u.role === 'admin')?.badge || '1000', adminName: C.users.find(u => u.role === 'admin')?.name });
+  }
 
   if (req.method === 'POST' && p === '/api/login') {
     const b = await readJson(req);
+    const code = normCode(b.company) || OWNER_CODE;
     const badge = str(b.badge, 20).trim(), pin = str(b.pin, 20);
-    const key = `${ip(req)}|${badge}`;
+    const key = `${ip(req)}|${code}|${badge}`;
     throttle(key);
-    const u = S.users.find(x => x.badge === badge);
-    if (!u || !checkPin(pin, u.pinHash)) { failed(key); fail(401, 'Badge or PIN not recognised'); }
+    const C = companyByCode(code);
+    const u = C && C.users.find(x => x.badge === badge);
+    if (!u || !checkPin(pin, u.pinHash)) { failed(key); fail(401, C ? 'Badge or PIN not recognised' : 'Company code not recognised'); }
     attempts.delete(key);
     const token = crypto.randomBytes(32).toString('base64url');
     for (const [k, s] of Object.entries(S.sessions)) if (s.exp < Date.now()) delete S.sessions[k];
-    S.sessions[sha(token)] = { userId: u.id, exp: Date.now() + SESSION_MS, at: Date.now() };
+    S.sessions[sha(token)] = { userId: u.id, companyId: C.id, exp: Date.now() + SESSION_MS, at: Date.now() };
     save();
-    return send(res, 200, { token, user: publicUser(u), users: S.users.map(publicUser) });
+    return send(res, 200, { token, user: publicUser(u), users: C.users.map(publicUser), company: publicCompany(C) });
   }
 
-  const me = authUser(req);
-  if (!me) fail(401, 'Please sign in again');
-  const tokenHash = sha(/^Bearer (.+)$/.exec(req.headers.authorization)[1]);
+  const auth = authUser(req);
+  if (!auth) fail(401, 'Please sign in again');
+  const { C, u: me, tokenHash } = auth;
 
   if (req.method === 'POST' && p === '/api/logout') { delete S.sessions[tokenHash]; save(); return send(res, 200, { ok: true }); }
 
@@ -368,7 +546,7 @@ async function route(req, res) {
     const evId = str(ev.id, 80);
     if (evId && seen.has(evId)) return send(res, 200, { ok: true, duplicate: true });
     const fn = H[ev.kind];
-    if (fn) fn(me, ev.data || {}, tokenHash);
+    if (fn) fn(C, me, ev.data || {}, tokenHash);
     if (evId) seen.add(evId);
     save();
     return send(res, 200, { ok: true });
@@ -378,17 +556,38 @@ async function route(req, res) {
     const since = +url.searchParams.get('since') || 0;
     const now = clock();
     const sup = isSup(me), admin = isAdmin(me);
-    const out = {
-      now, me: publicUser(me),
-      users: S.users.map(publicUser),
-      sites: S.sites,
-      messages: S.messages.filter(m => m.srvAt > since && (m.channel !== 'admin' || admin)).slice(-1000),
-      reports: [...reports.values()].filter(r => r.updatedAt > since && (sup || r.userId === me.id)),
-      shifts: Object.values(S.shifts).filter(s => s.srvAt > since && (sup || s.userId === me.id))
-        .map(({ track, ...s }) => (sup || s.userId === me.id) ? s : { ...s, lastGeo: null }),
-      acks: S.acks[me.id] || {}
-    };
-    return send(res, 200, out);
+    return send(res, 200, {
+      now, me: publicUser(me), company: publicCompany(C),
+      users: C.users.map(publicUser),
+      sites: C.sites,
+      messages: C.messages.filter(m => m.srvAt > since && (m.channel !== 'admin' || admin)).slice(-1000),
+      reports: [...reports.values()].filter(r => r.companyId === C.id && r.updatedAt > since && (sup || r.userId === me.id)),
+      shifts: Object.values(C.shifts).filter(s => s.srvAt > since && (sup || s.userId === me.id)).map(({ track, ...s }) => s),
+      acks: C.acks[me.id] || {}
+    });
+  }
+
+  // ----- account & billing (company administrator) -----
+  if (p.startsWith('/api/account')) {
+    if (!isAdmin(me)) fail(403, 'Only the company administrator can manage the account');
+    if (req.method === 'GET' && p === '/api/account') {
+      try { await refreshBilling(C); } catch (e) { }
+      if (!S.companies[C.id]) fail(410, 'This subscription has ended and the company account was removed.');
+      return send(res, 200, { company: { ...publicCompany(C), createdAt: C.createdAt, email: C.email || '' }, me: publicUser(me),
+        billing: C.owner ? { status: 'owner' } : C.billing ? { status: C.billing.status, periodEnd: C.billing.periodEnd, cancelAtPeriodEnd: C.billing.cancelAtPeriodEnd } : { status: 'none' },
+        price: PRICE_CENTS,
+        usage: { sites: C.sites.length, maxSites: MAX_SITES, officers: C.users.filter(x => x.role !== 'admin').length, maxOfficers: MAX_OFFICERS } });
+    }
+    if (C.owner || !C.billing?.subscription) fail(400, 'This company has no subscription to manage');
+    if (req.method === 'POST' && (p === '/api/account/cancel' || p === '/api/account/resume')) {
+      const sub = await stripe('POST', `/v1/subscriptions/${encodeURIComponent(C.billing.subscription)}`, { cancel_at_period_end: p.endsWith('cancel') ? 'true' : 'false' });
+      C.billing = billingOf(sub); save();
+      return send(res, 200, { ok: true, cancelAtPeriodEnd: C.billing.cancelAtPeriodEnd, periodEnd: C.billing.periodEnd });
+    }
+    if (req.method === 'POST' && p === '/api/account/portal') {
+      const ps = await stripe('POST', '/v1/billing_portal/sessions', { customer: C.billing.customer, return_url: `${baseUrl(req)}/account` });
+      return send(res, 200, { url: ps.url });
+    }
   }
   fail(404, 'Not found');
 }
@@ -398,9 +597,13 @@ const server = http.createServer(async (req, res) => {
   try { await route(req, res); }
   catch (e) {
     const status = e instanceof HttpError ? e.status : 500;
-    if (status === 500) console.error(e);
+    if (status >= 500) console.error(e.message || e);
     if (!res.headersSent) send(res, status, { error: status === 500 ? 'Server error' : e.message });
   }
 });
-server.listen(PORT, () => console.log(`Guard Patrol sync server ${VERSION} listening on :${PORT} · data in ${DATA_DIR} · ${S.users.length} account(s), ${reports.size} report(s)`));
+server.listen(PORT, () => {
+  const n = Object.values(S.companies).reduce((a, c) => a + c.users.length, 0);
+  console.log(`Guard Patrol sync server ${VERSION} listening on :${PORT} · data in ${DATA_DIR} · ${Object.keys(S.companies).length} company(ies), ${n} account(s), ${reports.size} report(s) · payments ${STRIPE_KEY ? (STRIPE_KEY.startsWith('sk_live') ? 'LIVE' : 'test mode') : 'not configured'}`);
+  if (STRIPE_KEY) { setTimeout(billingSync, 5000); setInterval(billingSync, BILLING_SYNC_MS); }
+});
 for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => { flush(); process.exit(0); });

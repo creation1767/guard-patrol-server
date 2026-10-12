@@ -1,86 +1,56 @@
-# Guard Patrol — Company Server
+# 4 Horseman Security — company server and website
 
-This small server connects every phone running Guard Patrol. Once it's online:
+One small Node.js program (no dependencies, Node 18+) that runs:
 
-- **One set of accounts.** Officers the administrator adds can sign in on any phone with their badge and PIN. PINs are stored encrypted (hashed), never in plain text.
-- **Every report goes straight to the administrator**, from any phone, into the Report inbox and the private Report alerts channel. When the admin marks a report reviewed, the officer's phone shows it.
-- **Messaging works between phones** (Dispatch and site channels, refreshed every 15 seconds).
-- **Live operations board.** The admin and supervisors see who is on duty and their latest position. Positions are accepted **only while an officer is checked in**; anything sent after check-out is discarded.
-- **The rules are enforced by the server**, not just the app: only the administrator can add or remove sites (max **4**), guard-tour locations (max **10 per site**) or officers (max **20 per site**, **80** in total), and officers can only check in at their assigned site. An officer who is on duty can't be removed.
+- **The website**: home page, sign-up with a $9.99/month Stripe subscription, log in, and an account and billing page for company administrators.
+- **The web app** at `/app/`: the same app as on Android, in a browser.
+- **The API** the Android app and web app use to sync accounts, sites, shifts, guard tours, reports and messages.
 
-It is a single file (`server.js`) with no third-party packages. It needs Node.js 18 or newer.
+## How companies work
 
----
+- Each subscriber gets a **separate company** with its own administrator, sites, officers, reports and messages. Companies can't see each other's data.
+- Everyone signs in with a **company code**, their **badge number** and **PIN**. A new company's administrator is badge **1000**, with the PIN chosen at sign-up.
+- Your own company (code `HORSEMAN`) is the **owner company**. It is never billed and never deleted. Its administrator PIN can always be reset with the `ADMIN_PIN` variable.
+- Limits per company: 4 sites, 10 guard-tour locations per site, 20 officers per site (80 in total).
 
-## Put it online with Railway (about 15 minutes)
+## Subscriptions (Stripe)
 
-You will need a free GitHub account and a Railway account. Railway charges by usage; a server this small typically costs only a few dollars a month, but check [railway.com/pricing](https://railway.com/pricing) for current plans.
+1. Sign-up collects the company name, the administrator's name, email and PIN, then sends the buyer to **Stripe Checkout**. Card details never reach this server.
+2. When payment succeeds, the company is created and the success page shows its company code. If the buyer closes the page early, the server finishes the setup automatically within 15 minutes.
+3. On the account page, administrators can update their card (Stripe billing portal), cancel (access continues to the end of the paid month), or undo a cancellation.
+4. Every 15 minutes the server checks each subscription with Stripe. When a subscription has **ended** (cancelled, or Stripe stopped retrying a failed payment), that company and all of its data are **deleted**.
 
-### 1. Put the files on GitHub
-1. Sign in at [github.com](https://github.com) → **New repository** → name it `guard-patrol-server` → choose **Private** → **Create repository**.
-2. On the new repository page click **uploading an existing file**.
-3. Drag in all the files from this folder (`server.js`, `package.json`, `Dockerfile`, `README.md`, `.gitignore`, `.dockerignore`), then **Commit changes**.
+The server creates the Stripe product and the $9.99/month price itself on first use. The only setup is one variable.
 
-### 2. Deploy on Railway
-1. Sign in at [railway.com](https://railway.com) (you can sign in with GitHub) → **New Project** → **Deploy from GitHub repo** → pick `guard-patrol-server`. Allow Railway access to the repo if asked.
-2. Railway starts building. Open the service, then **Variables** → **New Variable**:
-   - `ADMIN_PIN` = a 4–8 digit PIN for the administrator (for example `739214`). **Choose your own; don't use 1234.**
-   - (optional) `ADMIN_BADGE` = administrator badge number (default `1000`)
-   - (optional) `SEED_DEMO_SITES` = `false` if you don't want the two demo sites
-3. **Add storage (required):** right-click the project canvas (or press ⌘K / Ctrl+K) → **Volume** → connect it to the service → mount path `/data`. Without a volume, all data is wiped every time Railway restarts the server.
-4. Open the service → **Settings** → **Networking** → **Generate Domain**. You get an address like `https://guard-patrol-server-production.up.railway.app`.
-5. Open that address in a browser. You should see *"Guard Patrol sync server … is running."*
-6. Check **Deployments → View logs**: the line should say `data in /data`. That confirms the volume is in use.
+### Turn on payments
 
-> `ADMIN_PIN` is only used the very first time the server starts. To change the admin PIN later, use the app: **More → My profile & PIN**. If you forget to set `ADMIN_PIN`, the server prints a temporary PIN in the logs.
+In Railway → your service → **Variables**, add:
 
-### 3. Connect the phones
-On each phone, on the sign-in screen tap **Company server**, enter the address from step 4, then tap **Test & save** and sign in.
+| Variable | Value |
+|---|---|
+| `STRIPE_SECRET_KEY` | Your Stripe secret key from dashboard.stripe.com → Developers → API keys. Start with the **test** key (`sk_test_…`) and switch to the live key (`sk_live_…`) when you're ready to take real payments. |
 
-1. **Administrator first:** badge `1000` (or your `ADMIN_BADGE`) and your `ADMIN_PIN`. Then go to **More → Security officers** and add your officers with their badge numbers and PINs.
-2. **Officers:** connect the phone the same way and sign in with the badge and PIN the administrator created.
+For the "Update payment method" button, open Stripe → Settings → Billing → **Customer portal** once and click **Save** (once in test mode and once in live mode).
 
-Connecting a phone to a server clears the stand-alone demo data on that phone, so demo officers and demo reports never mix with real company data.
+## Other variables
 
----
-
-## Other hosting options
-- **Render.com:** create a *Web Service* from the GitHub repo (runtime: Docker). Persistent disks need a paid instance type. Add a Disk mounted at `/data` and set the environment variable `DATA_DIR=/data`, plus `ADMIN_PIN`.
-- **Any VPS or office PC with Docker:**
-  `docker build -t guard-patrol-server . && docker run -d -p 8080:8080 -v gp-data:/data -e DATA_DIR=/data -e ADMIN_PIN=739214 --restart unless-stopped guard-patrol-server`
-  Put it behind HTTPS (for example Caddy or Cloudflare Tunnel). Android blocks plain `http://` addresses.
-- **Plain Node.js:** `ADMIN_PIN=739214 DATA_DIR=/var/lib/guard-patrol node server.js`
-
-## Settings (environment variables)
-| Variable | Default | Purpose |
+| Variable | Default | Meaning |
 |---|---|---|
-| `ADMIN_PIN` | random, printed in logs | Administrator PIN on first start |
-| `ADMIN_BADGE` | `1000` | Administrator badge on first start |
-| `DATA_DIR` | Railway volume, else `./data` | Where data is stored, which **must be persistent** |
-| `SEED_DEMO_SITES` | `true` | Create two editable demo sites on first start |
-| `MAX_OFFICERS` | `80 (MAX_SITES × MAX_PER_SITE)` | Officer account limit |
-| `MAX_CHECKPOINTS` | `10` | Guard-tour locations per site |
-| `MAX_SITES` | `4` | Client sites |
-| `MAX_PER_SITE` | `20` | Officers assigned to each site |
-| `SESSION_DAYS` | `30` | How long a phone stays signed in |
-| `ALLOWED_ORIGINS` | the Android app | Leave as is |
+| `ADMIN_PIN` | — | Owner-company administrator PIN. Applied on first start and whenever this value changes. |
+| `PRICE_CENTS` | `999` | Monthly price in cents. |
+| `OWNER_COMPANY_CODE` | `HORSEMAN` | Sign-in code for the owner company. |
+| `OWNER_COMPANY_NAME` | `4 Horseman Security` | Owner company name. |
+| `PUBLIC_URL` | worked out per request | Public address of the site (used for Stripe return links). |
+| `MAX_SITES` / `MAX_PER_SITE` / `MAX_OFFICERS` / `MAX_CHECKPOINTS` | 4 / 20 / 80 / 10 | Limits per company. |
+| `DATA_DIR` | Railway volume | Where data is stored. Keep the volume attached at `/data`. |
 
-## Backups
-Everything lives in the data folder: `state.json` (accounts, sites, shifts, messages) and `reports/` (one file per report, including photos). Back up that folder regularly. On Railway, volume backups can be enabled in the volume's settings.
+## Files
 
-## Security notes
-- Use HTTPS (Railway and Render provide it automatically).
-- Sign-in is locked for 5 minutes after 5 wrong PINs for the same badge.
-- Changing an officer's PIN signs them out on their other phones; removing an officer signs them out everywhere.
-- PINs are short by design so they're quick to enter on duty. Treat the server address as private, and choose PINs that aren't easy to guess.
+```
+server.js      the server, API and Stripe billing
+web/           the website (home, signup, success, login, account, terms, privacy)
+app/           the web app (copy of the Android app's www folder)
+Dockerfile     how Railway builds it
+```
 
-## API (for developers)
-All endpoints are under `/api`. Every request except `health` and `login` needs `Authorization: Bearer <token>`.
-
-| Method | Path | Purpose |
-|---|---|---|
-| GET | `/api/health` | `{ ok, server: "guard-patrol", version }` |
-| POST | `/api/login` | `{ badge, pin }` → `{ token, user, users }` |
-| POST | `/api/logout` | Ends the session |
-| POST | `/api/events` | `{ id, kind, data, at }`. Kinds: `shift`, `location`, `scan`, `report`, `reportSeen`, `reportReviewed`, `message`, `ack`, `user`, `userDeleted`, `site`, `siteDeleted`. Idempotent by `id`; `4xx` means the server rejected the change. |
-| GET | `/api/state?since=<now from last call>` | `{ now, me, users, sites, messages, reports, shifts, acks }` changed since `since`. Officers receive only their own reports and shifts; the Report alerts channel goes to the administrator only. |
+When the Android app's `www` files change, copy them into `app/` so the web app matches.
