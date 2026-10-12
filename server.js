@@ -14,7 +14,8 @@
  *   DATA_DIR          where data is stored. Defaults to the Railway volume path if one is attached, else ./data.
  *                     MUST be a persistent volume in production, or data is lost on every redeploy.
  *   ADMIN_BADGE       administrator badge number on first start (default 1000)
- *   ADMIN_PIN         administrator PIN on first start (4–8 digits). If missing, a random PIN is printed to the logs.
+ *   ADMIN_PIN         administrator PIN (4–8 digits). Applied on first start and again whenever this value changes,
+ *                     so it doubles as a recovery PIN. If missing on first start, a random PIN is printed to the logs.
  *   SEED_DEMO_SITES   "false" to start with no sites (default: two demo sites you can edit or delete)
  *   ALLOWED_ORIGINS   comma-separated CORS origins (default: the Android app's origin). Use * only for testing.
  *   MAX_SITES         default 4           MAX_PER_SITE     default 20 (officers per site)
@@ -26,7 +27,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
-const VERSION = '1.1.0';
+const VERSION = '1.1.1';
 const PORT = +process.env.PORT || 8080;
 const DATA_DIR = path.resolve(process.env.DATA_DIR || process.env.RAILWAY_VOLUME_MOUNT_PATH || path.join(__dirname, 'data'));
 const REPORT_DIR = path.join(DATA_DIR, 'reports');
@@ -103,7 +104,20 @@ let S;
 try { S = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8')); }
 catch (e) {
   if (e.code !== 'ENOENT') { console.error('Cannot read', STATE_FILE, e.message); process.exit(1); }
-  S = seedState(); writeAtomic(STATE_FILE, JSON.stringify(S));
+  S = seedState(); S.adminPinApplied = isPin(process.env.ADMIN_PIN) ? hashPin(process.env.ADMIN_PIN) : undefined;
+  writeAtomic(STATE_FILE, JSON.stringify(S));
+}
+// ADMIN_PIN in the hosting settings is the administrator's recovery PIN: whenever its value changes,
+// the administrator account is reset to it on the next start. (A PIN changed in the app stays until then.)
+if (isPin(process.env.ADMIN_PIN) && !checkPin(process.env.ADMIN_PIN, S.adminPinApplied)) {
+  const admin = S.users.find(u => u.role === 'admin');
+  if (admin) {
+    admin.pinHash = hashPin(process.env.ADMIN_PIN); admin.srvAt = Date.now();
+    for (const [k, v] of Object.entries(S.sessions || {})) if (v.userId === admin.id) delete S.sessions[k];
+    S.adminPinApplied = hashPin(process.env.ADMIN_PIN);
+    writeAtomic(STATE_FILE, JSON.stringify(S));
+    console.log(`Administrator PIN reset from ADMIN_PIN (badge ${admin.badge}).`);
+  }
 }
 const seen = new Set(S.seenEvents || []);
 const reports = new Map();
