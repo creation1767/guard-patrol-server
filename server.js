@@ -17,7 +17,8 @@
  *   ADMIN_PIN         administrator PIN on first start (4–8 digits). If missing, a random PIN is printed to the logs.
  *   SEED_DEMO_SITES   "false" to start with no sites (default: two demo sites you can edit or delete)
  *   ALLOWED_ORIGINS   comma-separated CORS origins (default: the Android app's origin). Use * only for testing.
- *   MAX_OFFICERS      default 40          MAX_CHECKPOINTS  default 15 (per site)
+ *   MAX_SITES         default 4           MAX_PER_SITE     default 20 (officers per site)
+ *   MAX_OFFICERS      default MAX_SITES × MAX_PER_SITE (80)   MAX_CHECKPOINTS  default 10 (per site)
  *   SESSION_DAYS      default 30
  */
 const http = require('http');
@@ -25,13 +26,15 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
-const VERSION = '1.0.0';
+const VERSION = '1.1.0';
 const PORT = +process.env.PORT || 8080;
 const DATA_DIR = path.resolve(process.env.DATA_DIR || process.env.RAILWAY_VOLUME_MOUNT_PATH || path.join(__dirname, 'data'));
 const REPORT_DIR = path.join(DATA_DIR, 'reports');
 const STATE_FILE = path.join(DATA_DIR, 'state.json');
-const MAX_OFFICERS = +process.env.MAX_OFFICERS || 40;
-const MAX_CHECKPOINTS = +process.env.MAX_CHECKPOINTS || 15;
+const MAX_SITES = +process.env.MAX_SITES || 4;
+const MAX_PER_SITE = +process.env.MAX_PER_SITE || 20;
+const MAX_OFFICERS = +process.env.MAX_OFFICERS || MAX_SITES * MAX_PER_SITE;
+const MAX_CHECKPOINTS = +process.env.MAX_CHECKPOINTS || 10;
 const SESSION_MS = (+process.env.SESSION_DAYS || 30) * 86400000;
 const BODY_LIMIT = 25 * 1024 * 1024;
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || 'https://appassets.androidplatform.net')
@@ -58,7 +61,7 @@ function checkPin(pin, stored) {
   const a = crypto.scryptSync(pin, salt, 32), b = Buffer.from(hash, 'hex');
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
-const publicUser = u => ({ id: u.id, name: u.name, badge: u.badge, role: u.role, phone: u.phone || '' });
+const publicUser = u => ({ id: u.id, name: u.name, badge: u.badge, role: u.role, phone: u.phone || '', siteId: u.siteId || '' });
 
 // ---------- storage ----------
 fs.mkdirSync(REPORT_DIR, { recursive: true });
@@ -164,6 +167,8 @@ const H = {
     const id = str(d.id, 80) || fail(400, 'Shift id missing');
     const cur = S.shifts[id];
     if ((cur ? cur.userId : d.userId) !== u.id) fail(403, 'You can only record your own shifts');
+    // Officers check in only at their assigned site (supervisors and the administrator may cover any site).
+    if (!cur && u.role === 'guard' && str(d.siteId, 80) !== u.siteId) fail(403, 'You can only check in at your assigned site');
     const s = cur || { id, userId: u.id, track: [] };
     Object.assign(s, {
       siteId: str(d.siteId, 80), inAt: num(d.inAt), inGeo: geo(d.inGeo), inFence: str(d.inFence, 20), offsiteReason: str(d.offsiteReason, 300),
@@ -242,6 +247,15 @@ const H = {
     const badge = str(d.badge, 20).trim();
     if (!badge) fail(400, 'Badge number required');
     if (S.users.some(x => x.badge === badge && x.id !== (t && t.id))) fail(409, `Badge ${badge} is already in use`);
+    const staff = !t || t.role !== 'admin';
+    const siteId = staff ? str(d.siteId, 80) : undefined;
+    if (staff) {
+      if (!S.sites.some(s => s.id === siteId)) fail(400, 'Choose the site this officer is assigned to');
+      if ((!t || siteId !== t.siteId) && S.users.filter(x => x.role !== 'admin' && x.siteId === siteId).length >= MAX_PER_SITE)
+        fail(409, `Each site can have up to ${MAX_PER_SITE} officers`);
+      const onDuty = t && Object.values(S.shifts).find(s => s.userId === t.id && !s.outAt);
+      if (onDuty && onDuty.siteId !== siteId && t.role === 'guard' && d.role !== 'supervisor') fail(409, `${t.name} is on duty and must check out before changing site`);
+    }
     if (!t) {
       if (S.users.filter(x => x.role !== 'admin').length >= MAX_OFFICERS) fail(409, `Limit of ${MAX_OFFICERS} officer accounts reached`);
       if (!pin) fail(400, 'A PIN is required for new officers');
@@ -249,7 +263,7 @@ const H = {
       S.users.push(t);
     }
     t.name = str(d.name, 120) || t.name || 'Officer'; t.badge = badge; t.phone = str(d.phone, 40);
-    if (t.role !== 'admin') t.role = d.role === 'supervisor' ? 'supervisor' : 'guard';
+    if (t.role !== 'admin') { t.role = d.role === 'supervisor' ? 'supervisor' : 'guard'; t.siteId = siteId; }
     if (pin) { t.pinHash = hashPin(pin); revokeSessions(t.id, tokenHash); }
     t.srvAt = clock();
   },
@@ -265,12 +279,14 @@ const H = {
     if (!isAdmin(u)) fail(403, 'Only the administrator can change sites');
     const s = sanitizeSite(d);
     const i = S.sites.findIndex(x => x.id === s.id);
+    if (i < 0 && S.sites.length >= MAX_SITES) fail(409, `Limit of ${MAX_SITES} sites reached`);
     if (i >= 0) S.sites[i] = s; else S.sites.push(s);
   },
   siteDeleted(u, d) {
     if (!isAdmin(u)) fail(403, 'Only the administrator can delete sites');
     const id = str(d.id, 80);
     if (Object.values(S.shifts).some(s => s.siteId === id && !s.outAt)) fail(409, 'An officer is checked in at this site');
+    if (S.users.some(x => x.role !== 'admin' && x.siteId === id)) fail(409, 'Move the officers assigned to this site to another site first');
     S.sites = S.sites.filter(x => x.id !== id);
   }
 };

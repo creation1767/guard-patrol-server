@@ -6,7 +6,7 @@ This small server connects every phone running Guard Patrol. Once it's online:
 - **Every report goes straight to the administrator**, from any phone, into the Report inbox and the private Report alerts channel. When the admin marks a report reviewed, the officer's phone shows it.
 - **Messaging works between phones** (Dispatch and site channels, refreshed every 15 seconds).
 - **Live operations board.** The admin and supervisors see who is on duty and their latest position. Positions are accepted **only while an officer is checked in**; anything sent after check-out is discarded.
-- **The rules are enforced by the server**, not just the app: only the administrator can add or remove officers (max **40**), sites, or guard-tour locations (max **15 per site**). An officer who is on duty can't be removed.
+- **The rules are enforced by the server**, not just the app: only the administrator can add or remove sites (max **4**), guard-tour locations (max **10 per site**) or officers (max **20 per site**, **80** in total), and officers can only check in at their assigned site. An officer who is on duty can't be removed.
 
 It is a single file (`server.js`) with no third-party packages. It needs Node.js 18 or newer.
 
@@ -58,8 +58,10 @@ Connecting a phone to a server clears the stand-alone demo data on that phone, s
 | `ADMIN_BADGE` | `1000` | Administrator badge on first start |
 | `DATA_DIR` | Railway volume, else `./data` | Where data is stored, which **must be persistent** |
 | `SEED_DEMO_SITES` | `true` | Create two editable demo sites on first start |
-| `MAX_OFFICERS` | `40` | Officer account limit |
-| `MAX_CHECKPOINTS` | `15` | Guard-tour locations per site |
+| `MAX_OFFICERS` | `80 (MAX_SITES × MAX_PER_SITE)` | Officer account limit |
+| `MAX_CHECKPOINTS` | `10` | Guard-tour locations per site |
+| `MAX_SITES` | `4` | Client sites |
+| `MAX_PER_SITE` | `20` | Officers assigned to each site |
 | `SESSION_DAYS` | `30` | How long a phone stays signed in |
 | `ALLOWED_ORIGINS` | the Android app | Leave as is |
 
