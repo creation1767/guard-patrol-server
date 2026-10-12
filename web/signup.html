@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sign up · 4 Horseman Security</title>
+<meta name="theme-color" content="#06080e">
+<meta name="robots" content="noindex">
+<link rel="icon" href="/assets/favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Lora:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/styles.css">
+</head>
+<body>
+<header class="top"><div class="wrap">
+  <a class="brand" href="/"><img src="/assets/logo-mark.svg" alt=""><span><b>4 HORSEMAN</b><small>SECURITY · LEVEL 2 &amp; 3</small></span></a>
+  <nav><a class="link hide-sm" href="/#features">Features</a><a class="link hide-sm" href="/#pricing">Pricing</a><a class="link" href="/login" data-login-link>Log in</a><a class="btn btn-gold btn-sm" href="/signup">Get started</a></nav>
+</div></header>
+<main class="auth"><div class="auth-grid">
+  <form class="card panel" id="f" novalidate>
+    <span class="eyebrow">Create your company</span>
+    <h1>Start your subscription</h1>
+    <p class="muted small">You'll be the administrator of your company's account.</p>
+    <div class="alert info" id="closed" hidden>Online sign-up opens soon. Please check back shortly.</div>
+    <div class="alert info" id="canceled" hidden>Payment was cancelled, so nothing was charged. You can try again below.</div>
+    <div class="field"><label for="companyName">Company name</label><input id="companyName" name="companyName" required maxlength="120" autocomplete="organization"></div>
+    <div class="field"><label for="adminName">Your name</label><input id="adminName" name="adminName" required maxlength="120" autocomplete="name"></div>
+    <div class="field"><label for="email">Email</label><input id="email" name="email" type="email" required maxlength="200" autocomplete="email"><p class="hint">For receipts and billing from Stripe.</p></div>
+    <div class="row2">
+      <div class="field"><label for="pin">Choose a PIN</label><input id="pin" name="pin" type="password" inputmode="numeric" pattern="\d{4,8}" maxlength="8" required autocomplete="new-password"></div>
+      <div class="field"><label for="pin2">Confirm PIN</label><input id="pin2" name="pin2" type="password" inputmode="numeric" maxlength="8" required autocomplete="new-password"></div>
+    </div>
+    <p class="hint dim small" style="margin-top:8px">4–8 digits. You'll sign in with your company code, badge 1000 and this PIN.</p>
+    <label class="check"><input type="checkbox" id="agree" required><span>I agree to the <a href="/terms" target="_blank">Terms</a> and <a href="/privacy" target="_blank">Privacy Policy</a>, including that our company data is deleted when the subscription ends.</span></label>
+    <div class="alert err" id="err" hidden></div>
+    <div class="form-actions"><button class="btn btn-gold btn-big" id="go">Continue to secure payment</button>
+      <p class="secure"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg> Payment is handled by Stripe. Card details never touch our servers.</p></div>
+  </form>
+  <aside class="card hl summary panel">
+    <span class="eyebrow">Order summary</span>
+    <h3 style="margin:12px 0 10px">Company plan</h3>
+    <div class="line"><span class="muted">Sites</span><span>Up to 4</span></div>
+    <div class="line"><span class="muted">Officers</span><span>20 per site · 80 total</span></div>
+    <div class="line"><span class="muted">Tour locations</span><span>10 per site</span></div>
+    <div class="line"><span class="muted">Apps</span><span>Android + web</span></div>
+    <div class="line total"><span>Due today</span><span><span data-price>$9.99</span> / month</span></div>
+    <p class="dim small" style="margin-top:14px">Renews monthly. Cancel anytime from your account page.</p>
+  </aside>
+</div></main>
+<footer><div class="wrap">
+  <span>© <span data-year></span> 4 Horseman Security</span>
+  <nav><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/login">Log in</a></nav>
+</div></footer>
+<script src="/assets/site.js"></script>
+<script>
+(() => {
+  const f = HM.$('#f'), err = HM.$('#err'), go = HM.$('#go');
+  if (new URLSearchParams(location.search).get('canceled')) HM.$('#canceled').hidden = false;
+  HM.api('GET', '/api/plan').then(p => { document.querySelectorAll('[data-price]').forEach(e => e.textContent = HM.money(p.price)); if (!p.signupOpen) { HM.$('#closed').hidden = false; go.disabled = true; } }).catch(() => {});
+  f.addEventListener('submit', async e => {
+    e.preventDefault(); HM.alertBox(err, '');
+    const v = Object.fromEntries(new FormData(f));
+    if (v.companyName.trim().length < 2) return HM.alertBox(err, 'Enter your company name.');
+    if (v.adminName.trim().length < 2) return HM.alertBox(err, 'Enter your name.');
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.email.trim())) return HM.alertBox(err, 'Enter a valid email address.');
+    if (!/^\d{4,8}$/.test(v.pin)) return HM.alertBox(err, 'Your PIN must be 4–8 digits.');
+    if (v.pin !== v.pin2) return HM.alertBox(err, 'The two PINs do not match.');
+    if (!HM.$('#agree').checked) return HM.alertBox(err, 'Please accept the Terms and Privacy Policy.');
+    go.disabled = true; go.textContent = 'Opening secure checkout…';
+    try { const r = await HM.api('POST', '/api/signup', { companyName: v.companyName.trim(), adminName: v.adminName.trim(), email: v.email.trim(), pin: v.pin }); location.href = r.url; }
+    catch (x) { HM.alertBox(err, x.message); go.disabled = false; go.textContent = 'Continue to secure payment'; }
+  });
+})();
+</script>
+</body>
+</html>

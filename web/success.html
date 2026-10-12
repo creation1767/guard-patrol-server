@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Welcome · 4 Horseman Security</title>
+<meta name="theme-color" content="#06080e">
+<meta name="robots" content="noindex">
+<link rel="icon" href="/assets/favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Lora:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/styles.css">
+</head>
+<body>
+<header class="top"><div class="wrap">
+  <a class="brand" href="/"><img src="/assets/logo-mark.svg" alt=""><span><b>4 HORSEMAN</b><small>SECURITY · LEVEL 2 &amp; 3</small></span></a>
+  <nav><a class="link hide-sm" href="/#features">Features</a><a class="link hide-sm" href="/#pricing">Pricing</a><a class="link" href="/login" data-login-link>Log in</a><a class="btn btn-gold btn-sm" href="/signup">Get started</a></nav>
+</div></header>
+<main class="auth"><div class="card panel center" style="max-width:560px">
+  <img src="/assets/logo-mark.svg" alt="" style="width:76px;margin:0 auto 10px">
+  <div id="wait"><span class="eyebrow">Confirming payment</span><div class="spinner"></div><p class="muted">Setting up your company… this takes a few seconds.</p></div>
+  <div id="done" hidden>
+    <span class="eyebrow">You're all set</span>
+    <h1 style="font-size:34px;margin:12px 0 6px">Welcome to 4 Horseman</h1>
+    <p class="muted" id="who"></p>
+    <div class="card hl" style="margin-top:22px;text-align:left">
+      <span class="eyebrow">Your company code</span>
+      <div class="bigcode gold-text" id="code"></div>
+      <dl class="kv"><dt>Administrator badge</dt><dd id="badge"></dd><dt>PIN</dt><dd>The one you just chose</dd></dl>
+    </div>
+    <div class="alert info" style="text-align:left">Write down your company code. You and your officers need it to sign in, and it's always shown on your account page.</div>
+    <div class="btn-row" style="justify-content:center"><a class="btn btn-gold" href="/login" id="toLogin">Log in to your account</a><a class="btn btn-ghost" id="toApp" href="/app/">Open the web app</a></div>
+    <p class="dim small" style="margin-top:22px">Next: sign in, add your sites and tour locations under More, then add your officers.</p>
+  </div>
+  <div id="fail" hidden><span class="eyebrow">Almost there</span><h1 style="font-size:30px;margin:12px 0">We're still confirming your payment</h1>
+    <div class="alert err" id="ferr"></div><div class="btn-row" style="justify-content:center"><button class="btn btn-gold" onclick="location.reload()">Check again</button></div></div>
+</div></main>
+<footer><div class="wrap">
+  <span>© <span data-year></span> 4 Horseman Security</span>
+  <nav><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/login">Log in</a></nav>
+</div></footer>
+<script src="/assets/site.js"></script>
+<script>
+(async () => {
+  const sid = new URLSearchParams(location.search).get('session_id');
+  const show = id => ['wait', 'done', 'fail'].forEach(x => HM.$('#' + x).hidden = x !== id);
+  if (!sid) { show('fail'); HM.alertBox(HM.$('#ferr'), 'This page needs a sign-up reference. If you were charged, your company is created automatically within a few minutes.'); return; }
+  for (let i = 0; i < 12; i++) {
+    try {
+      const r = await HM.api('GET', '/api/signup/complete?session_id=' + encodeURIComponent(sid));
+      if (r.__status === 200) {
+        HM.$('#code').textContent = r.company.code; HM.$('#badge').textContent = r.badge;
+        HM.$('#who').textContent = r.company.name + (r.adminName ? ' · administrator ' + r.adminName : '');
+        HM.$('#toLogin').href = '/login?company=' + encodeURIComponent(r.company.code);
+        HM.$('#toApp').href = '/app/?company=' + encodeURIComponent(r.company.code);
+        return show('done');
+      }
+    } catch (e) { show('fail'); HM.alertBox(HM.$('#ferr'), e.message); return; }
+    await new Promise(r => setTimeout(r, 2500));
+  }
+  show('fail'); HM.alertBox(HM.$('#ferr'), 'Payment is taking longer than usual to confirm. Your company is created automatically as soon as it clears. Check again in a minute.');
+})();
+</script>
+</body>
+</html>

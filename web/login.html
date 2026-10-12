@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Log in · 4 Horseman Security</title>
+<meta name="theme-color" content="#06080e">
+<meta name="robots" content="noindex">
+<link rel="icon" href="/assets/favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Lora:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/styles.css">
+</head>
+<body>
+<header class="top"><div class="wrap">
+  <a class="brand" href="/"><img src="/assets/logo-mark.svg" alt=""><span><b>4 HORSEMAN</b><small>SECURITY · LEVEL 2 &amp; 3</small></span></a>
+  <nav><a class="link hide-sm" href="/#features">Features</a><a class="link hide-sm" href="/#pricing">Pricing</a><a class="link" href="/login" data-login-link>Log in</a><a class="btn btn-gold btn-sm" href="/signup">Get started</a></nav>
+</div></header>
+<main class="auth"><form class="card panel" id="f" novalidate>
+  <span class="eyebrow">Welcome back</span>
+  <h1>Log in</h1>
+  <p class="muted small">Administrators manage the account and billing here. Everyone else goes straight to the web app.</p>
+  <div class="field"><label for="company">Company code</label><input id="company" name="company" class="code-input" required maxlength="12" autocomplete="organization" spellcheck="false" autocapitalize="characters"></div>
+  <div class="field"><label for="badge">Badge number</label><input id="badge" name="badge" inputmode="numeric" required maxlength="20" autocomplete="username"></div>
+  <div class="field"><label for="pin">PIN</label><input id="pin" name="pin" type="password" inputmode="numeric" required maxlength="8" autocomplete="current-password"></div>
+  <div class="alert err" id="err" hidden></div>
+  <div class="form-actions"><button class="btn btn-gold btn-big" id="go">Log in</button></div>
+  <p class="muted small center" style="margin-top:18px">New here? <a href="/signup">Create your company account</a></p>
+</form></main>
+<footer><div class="wrap">
+  <span>© <span data-year></span> 4 Horseman Security</span>
+  <nav><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/login">Log in</a></nav>
+</div></footer>
+<script src="/assets/site.js"></script>
+<script>
+(() => {
+  const f = HM.$('#f'), err = HM.$('#err'), go = HM.$('#go');
+  const c = new URLSearchParams(location.search).get('company'); if (c) { HM.$('#company').value = c.toUpperCase(); HM.$('#badge').focus(); }
+  f.addEventListener('submit', async e => {
+    e.preventDefault(); HM.alertBox(err, '');
+    const v = Object.fromEntries(new FormData(f));
+    if (!v.company.trim() || !v.badge.trim() || !v.pin) return HM.alertBox(err, 'Enter your company code, badge number and PIN.');
+    go.disabled = true; go.textContent = 'Logging in…';
+    try {
+      const r = await HM.api('POST', '/api/login', { company: v.company.trim(), badge: v.badge.trim(), pin: v.pin });
+      if (r.user.role === 'admin') { HM.store.set(r.token); location.href = '/account'; }
+      else location.href = '/app/?company=' + encodeURIComponent(r.company.code);
+    } catch (x) { HM.alertBox(err, x.message); go.disabled = false; go.textContent = 'Log in'; }
+  });
+})();
+</script>
+</body>
+</html>
