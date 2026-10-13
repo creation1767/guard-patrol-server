@@ -6,7 +6,7 @@
  *  - Many companies on one server. Each company has its own administrator, sites, officers, shifts,
  *    reports and messages, and nothing is shared between companies.
  *  - The owner company (your own, migrated from earlier versions) is never billed and never deleted.
- *  - Other companies subscribe on the website: $9.99/month through Stripe Checkout. When the
+ *  - Other companies subscribe on the website: $29.99/month through Stripe Checkout. When the
  *    subscription ends (cancelled, or payments failed and Stripe gave up), the company is deleted.
  *  - Sign-in everywhere (Android app, web app, website): company code + badge number + PIN.
  *  - Serves the website (web/) at / and the full app in the browser (app/) at /app/.
@@ -18,7 +18,7 @@
  *   ADMIN_BADGE       owner-company administrator badge on first start (default 1000)
  *   OWNER_COMPANY_NAME / OWNER_COMPANY_CODE   owner company name / sign-in code (default "4 Horseman Security" / HORSEMAN)
  *   STRIPE_SECRET_KEY Stripe secret key (sk_test_… or sk_live_…). Without it the website shows sign-up as unavailable.
- *   PRICE_CENTS       monthly price in cents (default 999 = $9.99)
+ *   PRICE_CENTS       monthly price in cents (default 2999 = $29.99)
  *   PUBLIC_URL        public address of this server (default: worked out from each request)
  *   SEED_DEMO_SITES   "false" to start the owner company with no sites
  *   ALLOWED_ORIGINS   extra CORS origins for the API (the Android app's origin is always allowed)
@@ -47,7 +47,7 @@ const OWNER_NAME = process.env.OWNER_COMPANY_NAME || '4 Horseman Security';
 const OWNER_CODE = (process.env.OWNER_COMPANY_CODE || 'HORSEMAN').toUpperCase();
 const STRIPE_KEY = process.env.STRIPE_SECRET_KEY || '';
 const STRIPE_API = process.env.STRIPE_API_BASE || 'https://api.stripe.com';
-const PRICE_CENTS = +process.env.PRICE_CENTS || 999;
+const PRICE_CENTS = +process.env.PRICE_CENTS || 2999;
 const PRICE_LOOKUP = `horseman_company_monthly_${PRICE_CENTS}`;
 const BILLING_SYNC_MS = (+process.env.BILLING_SYNC_MINUTES || 15) * 60000;
 const ALLOWED_ORIGINS = ['https://appassets.androidplatform.net'].concat((process.env.ALLOWED_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean));

@@ -2,7 +2,7 @@
 
 One small Node.js program (no dependencies, Node 18+) that runs:
 
-- **The website**: home page, sign-up with a $9.99/month Stripe subscription, log in, and an account and billing page for company administrators.
+- **The website**: home page, sign-up with a $29.99/month Stripe subscription, log in, and an account and billing page for company administrators.
 - **The web app** at `/app/`: the same app as on Android, in a browser.
 - **The API** the Android app and web app use to sync accounts, sites, shifts, guard tours, reports and messages.
 
@@ -20,7 +20,7 @@ One small Node.js program (no dependencies, Node 18+) that runs:
 3. On the account page, administrators can update their card (Stripe billing portal), cancel (access continues to the end of the paid month), or undo a cancellation.
 4. Every 15 minutes the server checks each subscription with Stripe. When a subscription has **ended** (cancelled, or Stripe stopped retrying a failed payment), that company and all of its data are **deleted**.
 
-The server creates the Stripe product and the $9.99/month price itself on first use. The only setup is one variable.
+The server creates the Stripe product and the $29.99/month price itself on first use. The only setup is one variable.
 
 ### Turn on payments
 
@@ -37,7 +37,7 @@ For the "Update payment method" button, open Stripe → Settings → Billing →
 | Variable | Default | Meaning |
 |---|---|---|
 | `ADMIN_PIN` | — | Owner-company administrator PIN. Applied on first start and whenever this value changes. |
-| `PRICE_CENTS` | `999` | Monthly price in cents. |
+| `PRICE_CENTS` | `2999` | Monthly price in cents. |
 | `OWNER_COMPANY_CODE` | `HORSEMAN` | Sign-in code for the owner company. |
 | `OWNER_COMPANY_NAME` | `4 Horseman Security` | Owner company name. |
 | `PUBLIC_URL` | worked out per request | Public address of the site (used for Stripe return links). |
