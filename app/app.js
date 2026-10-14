@@ -63,7 +63,8 @@ const P = {
   eye: 'M12 5c-5 0-9 7-9 7s4 7 9 7 9-7 9-7-4-7-9-7M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6',
   eyeOff: 'M3 3l18 18M10.6 6.1A9 9 0 0 1 12 6c5 0 9 6 9 6a17 17 0 0 1-3 3.6M6.6 6.6C4.3 8.2 3 12 3 12s4 7 9 7a8.6 8.6 0 0 0 4.4-1.2M9.9 9.9a3 3 0 0 0 4.2 4.2',
   trash: 'M4 7h16M9 7V4h6v3M6 7l1 14h10l1-14',
-  key: 'M14 10a5 5 0 1 0-1.5 3.5L14 15h2v2h2v2h3v-3l-6.5-6.5'
+  key: 'M14 10a5 5 0 1 0-1.5 3.5L14 15h2v2h2v2h3v-3l-6.5-6.5',
+  sheet: 'M4 4h16v16H4zM4 9h16M4 14h16M10 9v11'
 };
 // 4 Horseman emblem (shield, four stars, horse head). Ids are prefixed per use so gradients never collide.
 const LOGO_INNER = "<defs>\n  <linearGradient id=\"g\" x1=\"0\" y1=\"0\" x2=\"1\" y2=\"1\"><stop offset=\"0\" stop-color=\"#f7e4b6\"/><stop offset=\".42\" stop-color=\"#d8b87f\"/><stop offset=\"1\" stop-color=\"#97713c\"/></linearGradient>\n  <linearGradient id=\"g2\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\"><stop offset=\"0\" stop-color=\"#f3dcaa\"/><stop offset=\".6\" stop-color=\"#cfa96f\"/><stop offset=\"1\" stop-color=\"#8e6936\"/></linearGradient>\n  <linearGradient id=\"g3\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\"><stop offset=\"0\" stop-color=\"#a98349\"/><stop offset=\"1\" stop-color=\"#5e4220\"/></linearGradient>\n  <clipPath id=\"c\"><path d=\"M60 15 L98 27 V64 C98 92 81 111 60 122 C39 111 22 92 22 64 V27 Z\"/></clipPath>\n</defs>\n<path d=\"M60 8 L104 22 V64 C104 96 84 118 60 130 C36 118 16 96 16 64 V22 Z\" fill=\"#0d1220\" stroke=\"url(#g)\" stroke-width=\"3.2\" stroke-linejoin=\"round\"/>\n<path d=\"M60 15 L98 27 V64 C98 92 81 111 60 122 C39 111 22 92 22 64 V27 Z\" fill=\"none\" stroke=\"url(#g)\" stroke-width=\"0.9\" opacity=\".85\"/>\n<g fill=\"url(#g)\"><path d=\"M40.00 33.60 L40.82 35.87 L43.23 35.95 L41.33 37.43 L42.00 39.75 L40.00 38.40 L38.00 39.75 L38.67 37.43 L36.77 35.95 L39.18 35.87Z\"/><path d=\"M52.70 29.10 L53.52 31.37 L55.93 31.45 L54.03 32.93 L54.70 35.25 L52.70 33.90 L50.70 35.25 L51.37 32.93 L49.47 31.45 L51.88 31.37Z\"/><path d=\"M67.30 29.10 L68.12 31.37 L70.53 31.45 L68.63 32.93 L69.30 35.25 L67.30 33.90 L65.30 35.25 L65.97 32.93 L64.07 31.45 L66.48 31.37Z\"/><path d=\"M80.00 33.60 L80.82 35.87 L83.23 35.95 L81.33 37.43 L82.00 39.75 L80.00 38.40 L78.00 39.75 L78.67 37.43 L76.77 35.95 L79.18 35.87Z\"/></g>\n<g clip-path=\"url(#c)\"><g transform=\"translate(24 41) scale(.385)\"><defs>\n  <linearGradient id=\"hg\" x1=\"0\" y1=\"0\" x2=\"1\" y2=\"1\"><stop offset=\"0\" stop-color=\"#f6e3b6\"/><stop offset=\".45\" stop-color=\"#d9b97f\"/><stop offset=\"1\" stop-color=\"#a27a43\"/></linearGradient>\n  <linearGradient id=\"hg2\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\"><stop offset=\"0\" stop-color=\"#e9cf98\"/><stop offset=\"1\" stop-color=\"#8e6936\"/></linearGradient>\n  <filter id=\"hb\" x=\"-20%\" y=\"-20%\" width=\"140%\" height=\"140%\"><feGaussianBlur stdDeviation=\"3.2\"/></filter>\n  <filter id=\"hb2\" x=\"-20%\" y=\"-20%\" width=\"140%\" height=\"140%\"><feGaussianBlur stdDeviation=\"1.4\"/></filter>\n  <clipPath id=\"hc\"><path d=\"M111 2 C115 9 118.5 21 119.5 33 C139 38 159 52 171 74 C182 95 187 125 189 160 L191 205 L125 205 C126.5 182 126 156 121.5 133 C120 125 117 119 111.5 115.5 C108 131 99 143 85 147 C76 150 68 153 61 158 C56 162 50 164.5 44 163.5 C39 162.8 36.5 160 37.5 156.5 C33 155.5 29.5 152 28.8 147 C28 141 29.5 135.5 33 131.5 C47 113 67 84 83 59 C87 52 91 47 96 43 C99 33 103 20 106.5 11 C108 7 109.5 4 111 2 Z\"/></clipPath>\n</defs>\n<path d=\"M123 6 C127.5 13 130 23 130 34 C127 34.5 124 34.5 121 34 C121.5 24 122.5 14 123 6Z\" fill=\"url(#hg2)\"/>\n<path d=\"M124.5 12 C126.5 18 127.5 25 127.3 31\" fill=\"none\" stroke=\"#6b4c24\" stroke-width=\"1.6\" stroke-linecap=\"round\" opacity=\".7\"/>\n<!-- mane behind the neck -->\n<g fill=\"url(#hg2)\">\n  <path d=\"M121 32 C138 31 152 38 163 50 C150 46 140 45 132 46 Z\"/>\n  <path d=\"M140 44 C157 46 171 56 180 70 C168 63 157 61 149 61 Z\"/>\n  <path d=\"M155 62 C172 68 184 82 190 98 C180 89 170 85 162 84 Z\"/>\n  <path d=\"M166 84 C181 93 191 108 194 126 C186 116 178 110 171 108 Z\"/>\n  <path d=\"M174 108 C187 119 194 135 195 153 C189 142 182 136 177 133 Z\"/>\n  <path d=\"M180 135 C190 147 195 163 194 180 C189 168 184 161 181 158 Z\"/>\n</g>\n<path d=\"M111 2 C115 9 118.5 21 119.5 33 C139 38 159 52 171 74 C182 95 187 125 189 160 L191 205 L125 205 C126.5 182 126 156 121.5 133 C120 125 117 119 111.5 115.5 C108 131 99 143 85 147 C76 150 68 153 61 158 C56 162 50 164.5 44 163.5 C39 162.8 36.5 160 37.5 156.5 C33 155.5 29.5 152 28.8 147 C28 141 29.5 135.5 33 131.5 C47 113 67 84 83 59 C87 52 91 47 96 43 C99 33 103 20 106.5 11 C108 7 109.5 4 111 2 Z\" fill=\"url(#hg)\"/>\n<g clip-path=\"url(#hc)\">\n  <!-- shadows -->\n  <g fill=\"#5a3f1d\" filter=\"url(#hb)\">\n    <path d=\"M111 116 C107 132 98 144 84 148 C96 150 110 146 120 134 C121 126 117 120 111 116Z\" opacity=\".75\"/>\n    <path d=\"M121 133 C126 156 126.5 182 125 205 L146 205 C144 180 138 156 128 136Z\" opacity=\".55\"/>\n    <path d=\"M44 163 C52 162 58 158 64 154 C58 160 52 165 44 166Z\" opacity=\".6\"/>\n    <path d=\"M98 76 C108 82 115 94 116 108 C110 100 104 92 96 86Z\" opacity=\".35\"/>\n    <path d=\"M119 34 C123 46 124 58 122 70 C132 60 136 48 133 38Z\" opacity=\".35\"/>\n    <path d=\"M66 112 C74 116 80 124 82 134 C76 128 70 122 62 118Z\" opacity=\".28\"/>\n    <path d=\"M175 80 C184 110 187 150 189 205 L176 205 C176 160 176 120 168 86Z\" opacity=\".35\"/>\n  </g>\n  <!-- highlights -->\n  <g fill=\"#fff3d4\" filter=\"url(#hb)\">\n    <path d=\"M36 133 C50 112 68 86 84 61 C89 54 93 49 97 46 C92 56 80 76 64 101 C52 119 44 130 39 137Z\" opacity=\".55\"/>\n    <ellipse cx=\"95\" cy=\"112\" rx=\"15\" ry=\"19\" opacity=\".32\"/>\n    <path d=\"M128 52 C146 62 158 80 164 104 C152 86 140 72 126 62Z\" opacity=\".28\"/>\n    <path d=\"M99 34 C102 24 105 14 108.5 6 C109 16 107 27 104 38Z\" opacity=\".35\"/>\n  </g>\n  <!-- anatomy lines: cheek (masseter), facial crest, veins, muzzle -->\n  <g fill=\"none\" stroke=\"#5e421f\" stroke-linecap=\"round\" filter=\"url(#hb2)\">\n    <path d=\"M99 74 C110 84 117 100 115 116 C113 128 104 138 92 143\" stroke-width=\"2.4\" opacity=\".8\"/>\n    <path d=\"M90 70 C84 80 77 92 70 103\" stroke-width=\"1.6\" opacity=\".55\"/>\n    <path d=\"M78 104 C84 112 88 122 88 132\" stroke-width=\"1.1\" opacity=\".45\"/>\n    <path d=\"M60 119 C66 121 71 125 74 131\" stroke-width=\"1\" opacity=\".45\"/>\n    <path d=\"M128 140 C131 160 132 182 131 204\" stroke-width=\"1.6\" opacity=\".4\"/>\n    <path d=\"M45 140 C49 146 50 152 48 157\" stroke-width=\"1.1\" opacity=\".5\"/>\n  </g>\n</g>\n<!-- crisp details -->\n<!-- eye: socket, lids, iris, catch-light -->\n<path d=\"M94 66.5 C98 60.5 105 59 110 62.5 C106 68.8 99 70.8 94 66.5Z\" fill=\"#1a1208\"/>\n<path d=\"M93 66 C97.5 58.6 105.5 56.6 111.5 61\" fill=\"none\" stroke=\"#4a3416\" stroke-width=\"1.5\" stroke-linecap=\"round\"/>\n<path d=\"M95.5 69 C100 71.5 105.5 70.5 109.5 66\" fill=\"none\" stroke=\"#7a5a2c\" stroke-width=\"1\" stroke-linecap=\"round\" opacity=\".8\"/>\n<circle cx=\"104.8\" cy=\"63.4\" r=\"1.25\" fill=\"#fbecc8\"/>\n<path d=\"M91 57 C97 51.5 105 50.5 113 53.5\" fill=\"none\" stroke=\"#6b4c24\" stroke-width=\"1.3\" stroke-linecap=\"round\" opacity=\".55\"/>\n<!-- front ear inner -->\n<path d=\"M110.5 8 C113.5 15 115.5 23 116 31 C112.5 26 110 18 110.5 8Z\" fill=\"#6b4c24\" opacity=\".55\"/>\n<!-- forelock: fine strands falling over the forehead -->\n<g fill=\"none\" stroke-linecap=\"round\">\n  <path d=\"M117 33 C111 38 105 44 100 52\" stroke=\"#e9cf98\" stroke-width=\"2.2\"/>\n  <path d=\"M119 35 C114 41 109 47 105 55\" stroke=\"#d9b97f\" stroke-width=\"2\"/>\n  <path d=\"M115 34 C110.5 37.5 106 41.5 102 46.5\" stroke=\"#f3dcaa\" stroke-width=\"1.6\"/>\n  <path d=\"M117 33 C111 38 105 44 100 52 M119 35 C114 41 109 47 105 55\" stroke=\"#5e421f\" stroke-width=\".55\" opacity=\".8\"/>\n</g>\n<!-- nostril -->\n<path d=\"M33 140.5 C33.5 135 38.5 132 43.5 134 C40.5 135.5 38.5 138.5 38.2 142.5 C36.6 143.3 34.4 142.6 33 140.5Z\" fill=\"#2a1d0c\"/>\n<path d=\"M43.5 134 C46 136.5 46.5 140.5 44.8 143.5\" fill=\"none\" stroke=\"#6b4c24\" stroke-width=\"1.1\" stroke-linecap=\"round\" opacity=\".7\"/>\n<!-- mouth & chin -->\n<path d=\"M29.5 150 C35 152 41 152.3 47 150.5 C50 149.6 52.5 150.4 54 152\" fill=\"none\" stroke=\"#3d2b12\" stroke-width=\"1.5\" stroke-linecap=\"round\"/>\n<path d=\"M38 157.2 C42 158.8 47 158.6 51 157\" fill=\"none\" stroke=\"#6b4c24\" stroke-width=\"1\" stroke-linecap=\"round\" opacity=\".7\"/>\n<!-- mane strands -->\n<g fill=\"none\" stroke=\"#5e421f\" stroke-linecap=\"round\" opacity=\".85\">\n  <path d=\"M126 40 C142 44 155 52 164 63\" stroke-width=\"1.1\"/>\n  <path d=\"M136 52 C154 57 168 68 177 83\" stroke-width=\"1.1\"/>\n  <path d=\"M150 70 C166 77 178 90 185 106\" stroke-width=\"1.1\"/>\n  <path d=\"M161 92 C175 101 184 116 188 133\" stroke-width=\"1.1\"/>\n  <path d=\"M170 116 C181 127 187 142 189 158\" stroke-width=\"1.1\"/>\n  <path d=\"M176 142 C184 153 188 167 188 182\" stroke-width=\"1.1\"/>\n  <path d=\"M131 46 C147 49 160 58 170 70\" stroke-width=\".6\"/>\n  <path d=\"M144 61 C160 66 172 78 181 93\" stroke-width=\".6\"/>\n  <path d=\"M156 82 C170 89 180 102 186 118\" stroke-width=\".6\"/>\n  <path d=\"M166 104 C178 113 186 128 189 144\" stroke-width=\".6\"/>\n</g></g></g>";
@@ -739,6 +740,7 @@ function Reports() {
   return `${bar('Report inbox')}<div class="page">
     <div class="card hl row"><span class="medal">${ic('doc')}</span><div class="grow"><span class="label">Administrator inbox</span>
       <p class="small" style="margin-top:4px">Every report filed by any officer or supervisor arrives here.</p></div>${nNew ? `<span class="unread">${nNew} new</span>` : ''}</div>
+    <button class="btn-ghost btn-block no-print" style="margin-top:12px" data-act="exportSheet">${ic('sheet', 'sm')} Export to spreadsheet</button>
     <div class="seg" style="margin:16px 0 12px">
       <input type="radio" name="inboxf" id="if1" ${inboxFilter === 'new' ? 'checked' : ''}><label for="if1" data-act="inboxFilter" data-v="new">New (${nNew})</label>
       <input type="radio" name="inboxf" id="if2" ${inboxFilter === 'all' ? 'checked' : ''}><label for="if2" data-act="inboxFilter" data-v="all">All (${all.length})</label>
@@ -748,6 +750,262 @@ function Reports() {
 }
 H.inboxFilter = el => { inboxFilter = el.dataset.v; render(); };
 H.markAllSeen = () => { const t = now(); adminNew().forEach(r => { r.adminSeenAt = t; }); readChannel('admin'); save(); render(); };
+
+// ---------- administrator: export reports to an Excel spreadsheet (.xlsx) ----------
+// Built on the device with no libraries: a small .xlsx (Office Open XML) writer plus a zip packer.
+const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+const XL = (() => {
+  const enc = new TextEncoder();
+  const xe = s => String(s).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F￾￿]/g, '')
+    .replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const colName = n => { let s = ''; for (n++; n; n = Math.floor((n - 1) / 26)) s = String.fromCharCode(65 + (n - 1) % 26) + s; return s; };
+  // Local date-time -> Excel serial number (days since 1899-12-30), so dates sort and filter as real dates.
+  const serial = ms => (ms - new Date(ms).getTimezoneOffset() * 60000) / 86400000 + 25569;
+  // Cell styles (index into cellXfs below).
+  const S = { text: 9, head: 1, dt: 2, wrap: 3, title: 4, bold: 5, link: 6, muted: 7, date: 8, num: 10 };
+  const STYLES = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+<numFmts count="2"><numFmt numFmtId="164" formatCode="yyyy-mm-dd hh:mm"/><numFmt numFmtId="165" formatCode="yyyy-mm-dd"/></numFmts>
+<fonts count="6"><font><sz val="11"/><name val="Calibri"/><family val="2"/></font><font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Calibri"/><family val="2"/></font><font><b/><sz val="16"/><color rgb="FF1B2338"/><name val="Calibri"/><family val="2"/></font><font><b/><sz val="11"/><name val="Calibri"/><family val="2"/></font><font><u/><sz val="11"/><color rgb="FF0563C1"/><name val="Calibri"/><family val="2"/></font><font><i/><sz val="10"/><color rgb="FF6B7186"/><name val="Calibri"/><family val="2"/></font></fonts>
+<fills count="4"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF1B2338"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFF3E7CF"/><bgColor indexed="64"/></patternFill></fill></fills>
+<borders count="2"><border><left/><right/><top/><bottom/><diagonal/></border><border><left/><right/><top/><bottom style="thin"><color rgb="FFD6B67E"/></bottom><diagonal/></border></borders>
+<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
+<cellXfs count="11">
+<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>
+<xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment vertical="center" wrapText="1"/></xf>
+<xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1" applyAlignment="1"><alignment horizontal="left" vertical="top"/></xf>
+<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf>
+<xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1"/>
+<xf numFmtId="0" fontId="3" fillId="3" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1"/>
+<xf numFmtId="0" fontId="4" fillId="0" borderId="0" xfId="0" applyFont="1" applyAlignment="1"><alignment vertical="top"/></xf>
+<xf numFmtId="0" fontId="5" fillId="0" borderId="0" xfId="0" applyFont="1"/>
+<xf numFmtId="165" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1" applyAlignment="1"><alignment horizontal="left" vertical="top"/></xf>
+<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment vertical="top"/></xf>
+<xf numFmtId="1" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1" applyAlignment="1"><alignment horizontal="right" vertical="top"/></xf>
+</cellXfs>
+<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>
+</styleSheet>`;
+
+  // A cell is a string/number/null, or { v, s, link } (link = URL shown as a clickable HYPERLINK formula).
+  function cellXml(c, ref) {
+    if (c == null || c === '') return '';
+    if (typeof c !== 'object') c = { v: c };
+    const s = c.s != null ? ` s="${c.s}"` : '';
+    if (c.link) { const label = xe(c.v || c.link).replace(/"/g, '""'); return `<c r="${ref}" t="str"${s}><f>HYPERLINK("${xe(c.link).replace(/"/g, '""')}","${label}")</f><v>${xe(c.v || c.link)}</v></c>`; }
+    if (typeof c.v === 'number' && isFinite(c.v)) return `<c r="${ref}"${s}><v>${c.v}</v></c>`;
+    const t = xe(String(c.v).slice(0, 32000));
+    return `<c r="${ref}" t="inlineStr"${s}><is><t xml:space="preserve">${t}</t></is></c>`;
+  }
+  // sheet: { name, widths[], rows[][], headRow (1-based row number of a table header to freeze + filter) }
+  function sheetXml(sh) {
+    const rows = sh.rows.map((r, i) => {
+      const n = i + 1, cells = (r.cells || r).map((c, j) => cellXml(c, colName(j) + n)).join('');
+      const ht = r.height ? ` ht="${r.height}" customHeight="1"` : '';
+      return `<row r="${n}"${ht}>${cells}</row>`;
+    }).join('');
+    const ncol = Math.max(1, sh.widths.length);
+    const pane = sh.headRow ? `<pane ySplit="${sh.headRow}" topLeftCell="A${sh.headRow + 1}" activePane="bottomLeft" state="frozen"/><selection pane="bottomLeft" activeCell="A${sh.headRow + 1}" sqref="A${sh.headRow + 1}"/>` : '';
+    const filter = sh.headRow && sh.rows.length > sh.headRow ? `<autoFilter ref="A${sh.headRow}:${colName(ncol - 1)}${sh.rows.length}"/>` : '';
+    return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+<sheetViews><sheetView workbookViewId="0"${sh.headRow ? '' : ' showGridLines="0"'}>${pane}</sheetView></sheetViews><sheetFormatPr defaultRowHeight="15"/>
+<cols>${sh.widths.map((w, i) => `<col min="${i + 1}" max="${i + 1}" width="${w}" customWidth="1"/>`).join('')}</cols>
+<sheetData>${rows}</sheetData>${filter}<pageMargins left="0.5" right="0.5" top="0.6" bottom="0.6" header="0.3" footer="0.3"/><pageSetup orientation="landscape" fitToHeight="0"/></worksheet>`;
+  }
+
+  // ---- zip (stored, no compression; fine for text-only workbooks) ----
+  const CRC = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+  const crc32 = b => { let c = 0xFFFFFFFF; for (let i = 0; i < b.length; i++) c = CRC[(c ^ b[i]) & 255] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; };
+  function zip(files) {
+    const d = new Date(), time = (d.getHours() << 11) | (d.getMinutes() << 5) | (d.getSeconds() >> 1),
+      date = ((d.getFullYear() - 1980) << 9) | ((d.getMonth() + 1) << 5) | d.getDate();
+    const parts = [], central = []; let off = 0;
+    for (const [name, text] of files) {
+      const nb = enc.encode(name), data = typeof text === 'string' ? enc.encode(text) : text, crc = crc32(data);
+      const h = new DataView(new ArrayBuffer(30));
+      h.setUint32(0, 0x04034b50, true); h.setUint16(4, 20, true); h.setUint16(6, 0x0800, true); h.setUint16(8, 0, true);
+      h.setUint16(10, time, true); h.setUint16(12, date, true); h.setUint32(14, crc, true); h.setUint32(18, data.length, true); h.setUint32(22, data.length, true);
+      h.setUint16(26, nb.length, true); h.setUint16(28, 0, true);
+      parts.push(new Uint8Array(h.buffer), nb, data);
+      const c = new DataView(new ArrayBuffer(46));
+      c.setUint32(0, 0x02014b50, true); c.setUint16(4, 20, true); c.setUint16(6, 20, true); c.setUint16(8, 0x0800, true); c.setUint16(10, 0, true);
+      c.setUint16(12, time, true); c.setUint16(14, date, true); c.setUint32(16, crc, true); c.setUint32(20, data.length, true); c.setUint32(24, data.length, true);
+      c.setUint16(28, nb.length, true); c.setUint32(42, off, true);
+      central.push(new Uint8Array(c.buffer), nb);
+      off += 30 + nb.length + data.length;
+    }
+    const csize = central.reduce((s, p) => s + p.length, 0);
+    const e = new DataView(new ArrayBuffer(22));
+    e.setUint32(0, 0x06054b50, true); e.setUint16(8, files.length, true); e.setUint16(10, files.length, true); e.setUint32(12, csize, true); e.setUint32(16, off, true);
+    const all = [...parts, ...central, new Uint8Array(e.buffer)], out = new Uint8Array(all.reduce((s, p) => s + p.length, 0));
+    let p = 0; for (const a of all) { out.set(a, p); p += a.length; }
+    return out;
+  }
+
+  function workbook(sheets, title) {
+    const ws = sheets.map((s, i) => `<sheet name="${xe(s.name)}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`).join('');
+    const names = sheets.map((s, i) => s.headRow && s.rows.length > s.headRow
+      ? `<definedName name="_xlnm._FilterDatabase" localSheetId="${i}" hidden="1">'${xe(s.name).replace(/'/g, "''")}'!$A$${s.headRow}:$${colName(s.widths.length - 1)}$${s.rows.length}</definedName>` : '').join('');
+    const iso = new Date().toISOString().replace(/\.\d+Z$/, 'Z');
+    return zip([
+      ['[Content_Types].xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>${sheets.map((s, i) => `<Override PartName="/xl/worksheets/sheet${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join('')}<Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/><Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/></Types>`],
+      ['_rels/.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/><Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties" Target="docProps/app.xml"/></Relationships>`],
+      ['docProps/core.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><dc:title>${xe(title)}</dc:title><dc:creator>4 Horseman Security</dc:creator><dcterms:created xsi:type="dcterms:W3CDTF">${iso}</dcterms:created><dcterms:modified xsi:type="dcterms:W3CDTF">${iso}</dcterms:modified></cp:coreProperties>`],
+      ['docProps/app.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties"><Application>4 Horseman Security</Application></Properties>`],
+      ['xl/workbook.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><bookViews><workbookView activeTab="0"/></bookViews><sheets>${ws}</sheets>${names ? `<definedNames>${names}</definedNames>` : ''}</workbook>`],
+      ['xl/_rels/workbook.xml.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${sheets.map((s, i) => `<Relationship Id="rId${i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`).join('')}<Relationship Id="rId${sheets.length + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`],
+      ['xl/styles.xml', STYLES],
+      ...sheets.map((s, i) => [`xl/worksheets/sheet${i + 1}.xml`, sheetXml(s)])
+    ]);
+  }
+  return { workbook, serial, S };
+})();
+
+// Time frames offered in the export sheet. Each returns [from, to) in local time.
+const dayStart = d => { const x = new Date(d); x.setHours(0, 0, 0, 0); return x.getTime(); };
+const EXPORT_RANGES = {
+  today: ['Today', () => [dayStart(now()), now() + 1]],
+  week: ['Last 7 days', () => [dayStart(now() - 6 * 86400000), now() + 1]],
+  d30: ['Last 30 days', () => [dayStart(now() - 29 * 86400000), now() + 1]],
+  month: ['This month', () => { const d = new Date(); return [new Date(d.getFullYear(), d.getMonth(), 1).getTime(), now() + 1]; }],
+  lastMonth: ['Last month', () => { const d = new Date(); return [new Date(d.getFullYear(), d.getMonth() - 1, 1).getTime(), new Date(d.getFullYear(), d.getMonth(), 1).getTime()]; }],
+  year: ['This year', () => [new Date(new Date().getFullYear(), 0, 1).getTime(), now() + 1]],
+  all: ['All time', () => [0, now() + 1]],
+  custom: ['Custom dates', null]
+};
+const ymd = t => { const d = new Date(t); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+const reportWhen = r => r.occurredAt || r.createdAt;
+function exportSelection(form) {
+  const fd = new FormData(form), key = fd.get('range');
+  let from, to;
+  if (key === 'custom') {
+    const a = fd.get('from'), b = fd.get('to');
+    if (!a || !b) return { error: 'Choose a start and end date' };
+    from = new Date(a + 'T00:00').getTime(); to = new Date(b + 'T00:00').getTime() + 86400000;
+    if (!(from < to)) return { error: 'The end date must be on or after the start date' };
+  } else [from, to] = EXPORT_RANGES[key][1]();
+  const types = ['incident', 'dar', 'maintenance'].filter(t => fd.get('t_' + t));
+  const site = fd.get('site') || '';
+  const list = db.reports.filter(r => types.includes(r.type) && (!site || r.siteId === site) && reportWhen(r) >= from && reportWhen(r) < to)
+    .sort((a, b) => reportWhen(a) - reportWhen(b));
+  return { key, from, to, types, site, list };
+}
+H.exportSheet = () => {
+  if (!isAdmin()) return toast('Administrator access only', 'err');
+  const opt = Object.entries(EXPORT_RANGES).map(([k, [l]]) => `<option value="${k}" ${k === 'd30' ? 'selected' : ''}>${l}</option>`).join('');
+  modal(`<h2>Export to spreadsheet</h2><p class="muted small">Creates an Excel workbook (.xlsx) with a summary sheet and one detailed sheet per report type. It opens in Excel, Google Sheets and Numbers.</p>
+    <form data-form="exportRun" id="exportForm" style="margin-top:16px">
+      <div class="field"><label>Time frame</label><select name="range">${opt}</select></div>
+      <div class="row" id="exportCustom" hidden><div class="field grow"><label>From</label><input type="date" name="from" value="${ymd(now() - 29 * 86400000)}"></div>
+        <div class="field grow"><label>To</label><input type="date" name="to" value="${ymd(now())}"></div></div>
+      <div class="field"><label>Reports to include</label><div class="seg">
+        <input type="checkbox" name="t_incident" id="xt1" checked><label for="xt1">Incident</label>
+        <input type="checkbox" name="t_dar" id="xt2" checked><label for="xt2">Daily activity</label>
+        <input type="checkbox" name="t_maintenance" id="xt3" checked><label for="xt3">Maintenance &amp; hazard</label></div></div>
+      <div class="field"><label>Site</label><select name="site"><option value="">All sites</option>${db.sites.map(s => `<option value="${s.id}">${esc(s.name)}</option>`).join('')}</select></div>
+      <p class="small" id="exportCount" style="min-height:20px"></p>
+      <button class="btn-primary btn-block btn-big">${ic('download', 'sm')} Create spreadsheet</button></form>`);
+  exportPreview();
+};
+function exportPreview() {
+  const f = $('#exportForm'); if (!f) return;
+  $('#exportCustom').hidden = f.range.value !== 'custom';
+  const s = exportSelection(f), out = $('#exportCount');
+  if (s.error) { out.textContent = s.error; out.style.color = 'var(--warn)'; return; }
+  out.style.color = '';
+  const n = t => s.list.filter(r => r.type === t).length;
+  out.textContent = s.types.length ? `${s.list.length} report(s) — ${n('incident')} incident, ${n('dar')} daily activity, ${n('maintenance')} maintenance & hazard` : 'Choose at least one report type';
+}
+document.addEventListener('change', e => { if (e.target.closest('#exportForm')) exportPreview(); });
+H.exportRun = (f) => {
+  if (!isAdmin()) return;
+  const s = exportSelection(f);
+  if (s.error) return toast(s.error, 'err');
+  if (!s.types.length) return toast('Choose at least one report type', 'err');
+  try {
+    const bytes = buildReportWorkbook(s);
+    const name = `4-Horseman-reports_${ymd(s.from || (s.list[0] ? reportWhen(s.list[0]) : now()))}_to_${ymd(s.to - 1)}.xlsx`;
+    saveBytes(name, XLSX_MIME, bytes);
+    closeModal(); toast(Native?.saveFile ? 'Spreadsheet saved to Downloads' : 'Spreadsheet downloaded', 'ok');
+  } catch (e) { toast('Could not create the spreadsheet: ' + e.message, 'err'); }
+};
+function saveBytes(name, mime, bytes) {
+  if (Native?.saveFile) {
+    let b = ''; for (let i = 0; i < bytes.length; i += 0x8000) b += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+    Native.saveFile(name, mime, btoa(b)); return;
+  }
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([bytes], { type: mime })); a.download = name;
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+}
+function buildReportWorkbook(s) {
+  const { S, serial } = XL;
+  const dt = t => t ? { v: serial(t), s: S.dt } : '';
+  const tx = v => v ? { v: String(v), s: S.text } : '';
+  const wrap = v => v ? { v: String(v), s: S.wrap } : '';
+  const num = v => v == null || v === '' ? '' : { v: +v, s: S.num };
+  const head = list => ({ cells: list.map(v => ({ v, s: S.head })), height: 30 });
+  const u = r => db.users.find(x => x.id === r.userId);
+  const site = r => siteById(r.siteId)?.name || 'Former site';
+  const status = r => r.reviewedAt ? 'Reviewed' : r.adminSeenAt ? 'Read' : 'New';
+  const gps = r => r.geo ? [num(r.geo.lat), num(r.geo.lng), num(r.geo.acc), { v: 'Open map', link: mapUrl(r.geo), s: S.link }] : ['', '', '', ''];
+  const review = r => [tx(status(r)), tx(r.reviewedBy), dt(r.reviewedAt), wrap(r.reviewNote)];
+  const company = db.config.companyName || '4 Horseman Security';
+  const period = s.key === 'all' ? 'All time' : `${fmtDate(s.from)} – ${fmtDate(s.to - 1)}`;
+  const intro = (title, n) => [[{ v: title, s: S.title }], [{ v: `${company} · ${period} · ${n} report(s)`, s: S.muted }], []];
+  const empty = n => n ? [] : [[{ v: 'No reports of this type in the selected time frame.', s: S.muted }]];
+  const sheets = [];
+  const by = (t) => s.list.filter(r => r.type === t);
+
+  // Summary
+  const counts = t => by(t).length;
+  const sum = [[{ v: 'Report export', s: S.title }], [{ v: company, s: S.bold }],
+    ['Time frame', { v: period }], ['Generated', dt(now())], ['Generated by', `${me().name} (badge ${me().badge})`],
+    ['Site', s.site ? siteById(s.site)?.name || '' : 'All sites'], []];
+  sum.push([{ v: 'Report type', s: S.bold }, { v: 'Count', s: S.bold }]);
+  const typeNames = { incident: 'Incident reports', dar: 'Daily activity reports', maintenance: 'Maintenance & hazard reports' };
+  s.types.forEach(t => sum.push([typeNames[t], { v: counts(t), s: S.num }]));
+  sum.push([{ v: 'Total', s: S.bold }, { v: s.list.length, s: S.num }], []);
+  if (s.types.includes('incident')) {
+    sum.push([{ v: 'Incidents by severity', s: S.bold }, { v: 'Count', s: S.bold }]);
+    ['Critical', 'High', 'Medium', 'Low'].forEach(v => sum.push([v, { v: by('incident').filter(r => r.severity === v).length, s: S.num }]));
+    sum.push([]);
+    const cats = {}; by('incident').forEach(r => cats[r.category || 'Other'] = (cats[r.category || 'Other'] || 0) + 1);
+    sum.push([{ v: 'Incidents by category', s: S.bold }, { v: 'Count', s: S.bold }]);
+    Object.entries(cats).sort((a, b) => b[1] - a[1]).forEach(([k, v]) => sum.push([k, { v, s: S.num }]));
+    if (!Object.keys(cats).length) sum.push([{ v: 'None', s: S.muted }]);
+    sum.push([]);
+  }
+  const sites = [...new Set(s.list.map(r => r.siteId))];
+  sum.push([{ v: 'Reports by site', s: S.bold }, ...s.types.map(t => ({ v: { incident: 'Incident', dar: 'Daily activity', maintenance: 'Maintenance' }[t], s: S.bold })), { v: 'Total', s: S.bold }]);
+  sites.forEach(id => { const rs = s.list.filter(r => r.siteId === id); sum.push([siteById(id)?.name || 'Former site', ...s.types.map(t => ({ v: rs.filter(r => r.type === t).length, s: S.num })), { v: rs.length, s: S.num }]); });
+  if (!sites.length) sum.push([{ v: 'No reports in this time frame', s: S.muted }]);
+  sum.push([]);
+  const offs = {}; s.list.forEach(r => offs[r.userName || 'Unknown'] = (offs[r.userName || 'Unknown'] || 0) + 1);
+  sum.push([{ v: 'Reports by officer', s: S.bold }, { v: 'Count', s: S.bold }]);
+  Object.entries(offs).sort((a, b) => b[1] - a[1]).forEach(([k, v]) => sum.push([k, { v, s: S.num }]));
+  sheets.push({ name: 'Summary', widths: [30, 16, 16, 16, 12], rows: sum });
+
+  if (s.types.includes('incident')) {
+    const rs = by('incident');
+    sheets.push({ name: 'Incident reports', headRow: 4, widths: [17, 17, 24, 22, 10, 18, 10, 26, 50, 36, 40, 14, 14, 11, 12, 9, 11, 8, 11, 18, 17, 30, 14],
+      rows: [...intro('Incident reports', rs.length), head(['Occurred', 'Submitted', 'Site', 'Officer', 'Badge', 'Category', 'Severity', 'Exact location', 'What happened', 'People involved', 'Actions taken', 'Emergency services', 'Agency case #', 'Latitude', 'Longitude', 'GPS ± m', 'Map', 'Photos', 'Status', 'Reviewed by', 'Reviewed at', 'Administrator note', 'Report ID']),
+        ...rs.map(r => [dt(reportWhen(r)), dt(r.createdAt), tx(site(r)), tx(r.userName), tx(u(r)?.badge), tx(r.category), tx(r.severity), wrap(r.location), wrap(r.description), wrap(r.persons), wrap(r.actions),
+          tx(r.authorities && r.authorities !== 'No' ? r.authorities : 'None'), tx(r.caseNo), ...gps(r), num(r.photos?.length || 0), ...review(r), tx(r.id)]), ...empty(rs.length)] });
+  }
+  if (s.types.includes('dar')) {
+    const rs = by('dar');
+    sheets.push({ name: 'Daily activity reports', headRow: 4, widths: [13, 17, 24, 22, 10, 50, 60, 18, 11, 12, 9, 11, 8, 11, 18, 17, 30, 14],
+      rows: [...intro('Daily activity reports', rs.length), head(['Shift date', 'Submitted', 'Site', 'Officer', 'Badge', 'Summary & observations', 'Shift timeline', 'Weather & conditions', 'Latitude', 'Longitude', 'GPS ± m', 'Map', 'Photos', 'Status', 'Reviewed by', 'Reviewed at', 'Administrator note', 'Report ID']),
+        ...rs.map(r => [{ v: serial(dayStart(reportWhen(r))), s: S.date }, dt(r.createdAt), tx(site(r)), tx(r.userName), tx(u(r)?.badge), wrap(r.description), wrap(r.timeline), wrap(r.weather), ...gps(r), num(r.photos?.length || 0), ...review(r), tx(r.id)]), ...empty(rs.length)] });
+  }
+  if (s.types.includes('maintenance')) {
+    const rs = by('maintenance');
+    sheets.push({ name: 'Maintenance & hazard', headRow: 4, widths: [17, 17, 24, 22, 10, 18, 10, 26, 50, 11, 12, 9, 11, 8, 11, 18, 17, 30, 14],
+      rows: [...intro('Maintenance & hazard reports', rs.length), head(['Occurred', 'Submitted', 'Site', 'Officer', 'Badge', 'Issue type', 'Urgency', 'Exact location', 'Description', 'Latitude', 'Longitude', 'GPS ± m', 'Map', 'Photos', 'Status', 'Reviewed by', 'Reviewed at', 'Administrator note', 'Report ID']),
+        ...rs.map(r => [dt(reportWhen(r)), dt(r.createdAt), tx(site(r)), tx(r.userName), tx(u(r)?.badge), tx(r.category), tx(r.severity), wrap(r.location), wrap(r.description), ...gps(r), num(r.photos?.length || 0), ...review(r), tx(r.id)]), ...empty(rs.length)] });
+  }
+  return XL.workbook(sheets, `${company} reports ${period}`);
+}
 function darTimeline(sh) {
   if (!sh) return '';
   return db.events.filter(e => e.shiftId === sh.id).map(e => `${fmtTime(e.at)}  ${e.text}`).join('\n');
@@ -930,7 +1188,7 @@ function More() {
       ${isSup() ? row('#', 'download', 'Export data', 'JSON backup of this device', 'exportData') : ''}
       ${row('#', 'logout', 'Sign out', '', 'logout')}
     </div>
-    <p class="note">4 Horseman Security Level 2 &amp; 3 · version 1.3</p></div>`;
+    <p class="note">4 Horseman Security Level 2 &amp; 3 · version 1.4</p></div>`;
 }
 H.profile = () => {
   const u = me();
