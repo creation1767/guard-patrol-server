@@ -1175,7 +1175,7 @@ function More() {
     ${isSup() ? `<div class="section-title"><h3>Supervision</h3></div><div class="list">
       ${row('#/board', 'chart', 'Operations board', 'Officers on duty and their live position')}</div>` : ''}
     ${isAdmin() && db.config.companyCode ? `<div class="card hl" style="margin-top:12px"><span class="label">Company code</span>
-      <div class="row between" style="margin-top:6px"><b style="font-size:22px;letter-spacing:.18em" class="gold">${esc(db.config.companyCode)}</b><span class="muted small">${esc(db.config.companyName || '')}</span></div>
+      <b style="display:block;margin-top:6px;font-size:22px;letter-spacing:.14em;overflow-wrap:anywhere" class="gold">${esc(db.config.companyCode)}</b><span class="muted small">${esc(db.config.companyName || '')}</span>
       <p class="dim small" style="margin-top:8px">Officers enter this code with their badge and PIN to sign in.</p></div>` : ''}
     ${isAdmin() ? `<div class="section-title"><h3>Administration</h3><span class="pill gold">${ic('lock', 'sm')} Admin</span></div><div class="list">
       ${row('#/reports', 'doc', 'Report inbox', `${adminNew().length} new · ${db.reports.length} total`)}
