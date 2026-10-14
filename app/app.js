@@ -4,10 +4,10 @@
    Roles: admin (manages officers & locations), supervisor (operations board, all reports), guard (officer). */
 
 // ---------- limits ----------
-const MAX_SITES = 4;              // client sites
-const MAX_PER_SITE = 20;          // officer accounts assigned to each site
-const MAX_OFFICERS = MAX_SITES * MAX_PER_SITE; // 80 accounts in total (excludes the admin account)
-const MAX_CHECKPOINTS = 10;       // guard-tour locations per site
+const MAX_SITES = 2;              // client sites
+const MAX_PER_SITE = 25;          // officer accounts assigned to each site
+const MAX_OFFICERS = MAX_SITES * MAX_PER_SITE; // 50 accounts in total (excludes the admin account)
+const MAX_CHECKPOINTS = 20;       // guard-tour locations per site
 const PING_EVERY_MS = 5 * 60000;  // on-shift location ping interval
 const PING_MOVE_M = 75;           // or when the officer moves this far
 
