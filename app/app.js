@@ -1163,7 +1163,7 @@ H.quick = el => sendMsg($('form[data-form=send]').dataset.ch, el.dataset.text);
 
 // ---------- more / profile / history ----------
 function More() {
-  const u = me(); const c = db.config;
+  const u = me();
   const row = (href, icon, title, sub, act) => `<a class="item" href="${href}" ${act ? `data-act="${act}"` : ''}><span class="medal">${ic(icon)}</span><div class="grow"><b>${title}</b>${sub ? `<p class="muted small">${sub}</p>` : ''}</div><span class="chev">${ic('chev', 'sm')}</span></a>`;
   return `${bar('More')}<div class="page">
     <div class="card hl row"><span class="medal">${ic('user')}</span><div class="grow"><h3>${esc(u.name)}</h3><p class="muted small">Badge ${esc(u.badge)} · ${roleName(u.role)}</p></div></div>
@@ -1181,9 +1181,6 @@ function More() {
       ${row('#/reports', 'doc', 'Report inbox', `${adminNew().length} new · ${db.reports.length} total`)}
       ${row('#/admin/officers', 'users', 'Security officers', `${officerCount()} of ${MAX_OFFICERS} accounts used`)}
       ${row('#/admin', 'building', 'Sites & guard-tour locations', `${db.sites.length} of ${MAX_SITES} sites · up to ${MAX_CHECKPOINTS} tour locations and ${MAX_PER_SITE} officers each`)}</div>` : ''}
-    ${isAdmin() ? `<div class="section-title"><h3>Company server</h3>${db.config.syncUrl ? `<span class="pill ${db.config.syncError ? 'warn' : 'ok'}">${db.config.syncError ? 'Offline' : 'Connected'}</span>` : ''}</div>
-    <div class="card"><p class="small">${c.syncUrl ? `Server <b>${esc(c.syncUrl)}</b><br><span class="muted">Last sync ${c.lastSync ? ago(c.lastSync) : 'never'} · ${db.outbox.length} item(s) waiting</span>${c.syncError ? `<br><span style="color:var(--bad)">${esc(c.syncError)}</span>` : ''}` : '<span class="muted">Not connected — data stays on this device.</span>'}</p>
-      ${isAdmin() || !db.config.syncUrl ? `<button class="btn-ghost btn-block" style="margin-top:12px" data-act="syncCfg">${ic('sync', 'sm')} ${db.config.syncUrl ? 'Change company server' : 'Connect to company server'}</button>` : ''}</div>` : ''}
     <div class="list" style="margin-top:12px">
       ${isSup() ? row('#', 'download', 'Export data', 'JSON backup of this device', 'exportData') : ''}
       ${row('#', 'logout', 'Sign out', '', 'logout')}
