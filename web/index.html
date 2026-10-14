@@ -26,10 +26,11 @@
     <div class="cta"><a class="btn btn-gold btn-big" href="/signup">Start your subscription</a><a class="btn btn-ghost btn-big" href="#how">See how it works</a></div>
     <p class="note">$29.99 a month per company · Cancel anytime · Android app included</p>
   </div>
-  <div class="phones" aria-hidden="true">
-    <div class="phone a"><img src="/assets/shot-home.webp" alt="" width="300" height="649"></div>
-    <div class="phone b"><img src="/assets/shot-board.webp" alt="" width="300" height="649"></div>
-  </div>
+  <figure class="ad">
+    <video id="ad" src="/assets/ad.mp4" poster="/assets/ad-poster.webp" width="540" height="960" muted loop playsinline preload="metadata"
+      aria-label="26-second tour of the 4 Horseman app: check-in, QR guard tours, reports to the administrator and the live operations board"></video>
+    <button class="ad-btn" id="adSound" type="button" aria-pressed="false"><span>Sound on</span></button>
+  </figure>
 </div></section>
 
 <section id="features"><div class="wrap">
@@ -103,6 +104,18 @@
 </div></footer>
 <script src="/assets/site.js"></script>
 <script>
+  // Hero video: plays silently while on screen; "Sound on" unmutes and restarts it. Reduced-motion visitors get a normal player instead.
+  (() => {
+    const v = document.getElementById('ad'), b = document.getElementById('adSound'); if (!v) return;
+    const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (still) { v.controls = true; b.hidden = true; return; }
+    let inView = false;
+    new IntersectionObserver(([e]) => { inView = e.isIntersecting; if (inView) v.play().catch(() => {}); else v.pause(); }, { threshold: .25 }).observe(v);
+    b.addEventListener('click', () => {
+      v.muted = !v.muted; if (!v.muted) { v.currentTime = 0; v.play().catch(() => {}); }
+      b.setAttribute('aria-pressed', String(!v.muted)); b.firstChild.textContent = v.muted ? 'Sound on' : 'Sound off';
+    });
+  })();
   HM.api('GET', '/api/plan').then(p => { document.querySelectorAll('[data-price]').forEach(e => e.textContent = HM.money(p.price)); }).catch(() => {});
 </script>
 </body>
