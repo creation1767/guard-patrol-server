@@ -11,7 +11,7 @@ One small Node.js program (no dependencies, Node 18+) that runs:
 - Each subscriber gets a **separate company** with its own administrator, sites, officers, reports and messages. Companies can't see each other's data.
 - Everyone signs in with a **company code**, their **badge number** and **PIN**. A new company's administrator is badge **1000**, with the PIN chosen at sign-up.
 - Your own company (code `HORSEMAN`) is the **owner company**. It is never billed and never deleted. Its administrator PIN can always be reset with the `ADMIN_PIN` variable.
-- Limits per company: 4 sites, 10 guard-tour locations per site, 20 officers per site (80 in total).
+- Limits per company: 2 sites, 20 guard-tour locations per site, 25 officers per site (50 in total).
 
 ## Subscriptions (Stripe)
 
@@ -41,7 +41,7 @@ For the "Update payment method" button, open Stripe → Settings → Billing →
 | `OWNER_COMPANY_CODE` | `HORSEMAN` | Sign-in code for the owner company. |
 | `OWNER_COMPANY_NAME` | `4 Horseman Security` | Owner company name. |
 | `PUBLIC_URL` | worked out per request | Public address of the site (used for Stripe return links). |
-| `MAX_SITES` / `MAX_PER_SITE` / `MAX_OFFICERS` / `MAX_CHECKPOINTS` | 4 / 20 / 80 / 10 | Limits per company. |
+| `MAX_SITES` / `MAX_PER_SITE` / `MAX_OFFICERS` / `MAX_CHECKPOINTS` | 2 / 25 / 50 / 20 | Limits per company. |
 | `DATA_DIR` | Railway volume | Where data is stored. Keep the volume attached at `/data`. |
 
 ## Files

@@ -22,7 +22,7 @@
  *   PUBLIC_URL        public address of this server (default: worked out from each request)
  *   SEED_DEMO_SITES   "false" to start the owner company with no sites
  *   ALLOWED_ORIGINS   extra CORS origins for the API (the Android app's origin is always allowed)
- *   MAX_SITES 4 · MAX_PER_SITE 20 · MAX_OFFICERS 80 · MAX_CHECKPOINTS 10 · SESSION_DAYS 30   (limits per company)
+ *   MAX_SITES 2 · MAX_PER_SITE 25 · MAX_OFFICERS 50 · MAX_CHECKPOINTS 20 · SESSION_DAYS 30   (limits per company)
  */
 const http = require('http');
 const fs = require('fs');
@@ -36,10 +36,10 @@ const REPORT_DIR = path.join(DATA_DIR, 'reports');
 const STATE_FILE = path.join(DATA_DIR, 'state.json');
 const WEB_DIR = path.join(__dirname, 'web');
 const APP_DIR = path.join(__dirname, 'app');
-const MAX_SITES = +process.env.MAX_SITES || 4;
-const MAX_PER_SITE = +process.env.MAX_PER_SITE || 20;
+const MAX_SITES = +process.env.MAX_SITES || 2;
+const MAX_PER_SITE = +process.env.MAX_PER_SITE || 25;
 const MAX_OFFICERS = +process.env.MAX_OFFICERS || MAX_SITES * MAX_PER_SITE;
-const MAX_CHECKPOINTS = +process.env.MAX_CHECKPOINTS || 10;
+const MAX_CHECKPOINTS = +process.env.MAX_CHECKPOINTS || 20;
 const SESSION_MS = (+process.env.SESSION_DAYS || 30) * 86400000;
 const BODY_LIMIT = 25 * 1024 * 1024;
 const OWNER_ID = 'c_owner';
