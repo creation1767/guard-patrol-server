@@ -818,7 +818,12 @@ async function route(req, res) {
       messages: C.messages.filter(m => m.srvAt > since && (m.channel !== 'admin' || admin)).slice(-1000),
       reports: [...reports.values()].filter(r => r.companyId === C.id && r.updatedAt > since && (sup || r.userId === me.id)),
       shifts: Object.values(C.shifts).filter(s => s.srvAt > since && (sup || s.userId === me.id)).map(({ track, ...s }) => s),
-      acks: C.acks[me.id] || {}
+      acks: C.acks[me.id] || {},
+      // My schedule (app): my planned shifts from yesterday to five weeks ahead, plus open shifts at my site.
+      schedule: C.sched.filter(x => x.end > Date.now() - 86400000 && x.start < Date.now() + 35 * 86400000 &&
+        (x.userId === me.id || (!x.userId && (me.role !== 'guard' || x.siteId === me.siteId))))
+        .sort((a, b) => a.start - b.start).slice(0, 300)
+        .map(x => ({ id: x.id, siteId: x.siteId, start: x.start, end: x.end, note: x.note, open: !x.userId }))
     });
   }
 
