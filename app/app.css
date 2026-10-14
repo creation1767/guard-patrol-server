@@ -215,3 +215,11 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--gold);bo
   .qr-grid{grid-template-columns:repeat(3,1fr)}
   .qr-card{border:1px solid #000}
 }
+
+/* language menu */
+.lang-select { appearance: none; -webkit-appearance: none; background: #0a0d16; color: var(--text, #f3eee4); border: 1px solid rgba(214, 182, 126, .25); border-radius: 12px; padding: 9px 30px 9px 12px; font-family: inherit; font-size: 15px; font-weight: 500;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23d6b67e' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 9px center; background-size: 14px; }
+[dir="rtl"] .lang-select { padding: 9px 12px 9px 30px; background-position: left 9px center; }
+.lang-select { width: auto; min-width: 150px; }
+.brandbar .wordmark { white-space: nowrap; } .brandbar .grow { min-width: 0; } .brandbar .label { overflow: hidden; text-overflow: ellipsis; }
+[dir="rtl"] .wordmark, [dir="rtl"] .note, [dir="rtl"] [translate="no"] { unicode-bidi: plaintext; }
