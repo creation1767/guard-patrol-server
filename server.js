@@ -77,7 +77,9 @@ function checkPin(pin, stored) {
 const publicUser = u => ({ id: u.id, name: u.name, badge: u.badge, role: u.role, phone: u.phone || '', siteId: u.siteId || '' });
 const publicCompany = C => ({ id: C.id, code: C.code, name: C.name, owner: !!C.owner });
 const CODE_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
-const normCode = c => str(c, 20).toUpperCase().replace(/[^A-Z0-9]/g, '');
+// Company codes are the company name in capitals with spaces and punctuation removed ("Acme Security, LLC" -> ACMESECURITYLLC),
+// so typing the name any way at sign-in finds the company.
+const normCode = c => str(c, 120).toUpperCase().replace(/[^A-Z0-9]/g, '');
 
 // ---------- storage ----------
 fs.mkdirSync(REPORT_DIR, { recursive: true });
@@ -170,9 +172,18 @@ function newCode() {
     if (!companyByCode(c)) return c;
   }
 }
+// Is a code taken by a company, or held by someone else's sign-up that is still at checkout (1 hour)?
+const codeTaken = (code, exceptPending) => !!companyByCode(code) ||
+  Object.values(S.pending).some(p => p.id !== exceptPending && !p.companyId && normCode(p.companyName) === code && Date.now() - p.createdAt < 3600000);
+// The company name is the code. Only if two paid sign-ups raced for the same name does the later one get a number added.
+function codeFromName(name) {
+  const base = normCode(name); if (!base) return newCode();
+  if (!companyByCode(base)) return base;
+  for (let i = 2; ; i++) if (!companyByCode(base + i)) return base + i;
+}
 function createCompany({ name, adminName, email, pinHash, billing }) {
   const id = 'c' + crypto.randomUUID().replace(/-/g, '').slice(0, 16);
-  const C = emptyCompany(id, str(name, 120) || 'Security company', newCode());
+  const C = emptyCompany(id, str(name, 120) || 'Security company', codeFromName(name));
   C.email = str(email, 200); C.billing = billing || null;
   C.users.push({ id: 'u_admin', name: str(adminName, 120) || 'Administrator', badge: '1000', role: 'admin', phone: '', pinHash, srvAt: clock() });
   C.messages.push({ id: 'm' + crypto.randomUUID(), channel: 'dispatch', from: 'system', fromName: 'System', system: true, at: Date.now(), srvAt: clock(),
@@ -504,6 +515,9 @@ async function route(req, res) {
     const key = `signup|${ip(req)}`; throttle(key);
     const companyName = str(b.companyName, 120).trim(), adminName = str(b.adminName, 120).trim(), email = str(b.email, 200).trim(), pin = str(b.pin, 20);
     if (companyName.length < 2) fail(400, 'Enter your company name');
+    const code = normCode(companyName);
+    if (code.length < 2) fail(400, 'Your company name must include at least two letters or numbers');
+    if (codeTaken(code)) fail(409, `The company name "${companyName}" is already taken. Add your city or another word to make it unique.`);
     if (adminName.length < 2) fail(400, 'Enter your name');
     if (!isEmail(email)) fail(400, 'Enter a valid email address');
     if (!isPin(pin)) fail(400, 'Choose a PIN of 4–8 digits');
