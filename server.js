@@ -6,8 +6,12 @@
  *  - Many companies on one server. Each company has its own administrator, sites, officers, shifts,
  *    reports and messages, and nothing is shared between companies.
  *  - The owner company (your own, migrated from earlier versions) is never billed and never deleted.
- *  - Other companies subscribe on the website: $29.99/month through Stripe Checkout. When the
- *    subscription ends (cancelled, or payments failed and Stripe gave up), the company is deleted.
+ *  - Other companies subscribe on the website: $149.99/month, recurring, through Stripe Checkout.
+ *    A company that cancels is deleted when its paid period ends. A company whose monthly payment fails
+ *    keeps everything for GRACE_DAYS (15) after the payment date; if it is still unpaid then, it is deleted.
+ *  - Website-only administrator dashboard: scheduling, payroll (hours × pay rates, overtime, export),
+ *    client billing (invoices from worked hours) and a client portal (clients see their sites' reports,
+ *    check-ins, tour scans and invoices, and send service requests).
  *  - Sign-in everywhere (Android app, web app, website): company code + badge number + PIN.
  *  - Serves the website (web/) at / and the full app in the browser (app/) at /app/.
  *
@@ -18,7 +22,8 @@
  *   ADMIN_BADGE       owner-company administrator badge on first start (default 1000)
  *   OWNER_COMPANY_NAME / OWNER_COMPANY_CODE   owner company name / sign-in code (default "4 Horseman Security" / HORSEMAN)
  *   STRIPE_SECRET_KEY Stripe secret key (sk_test_… or sk_live_…). Without it the website shows sign-up as unavailable.
- *   PRICE_CENTS       monthly price in cents (default 2999 = $29.99)
+ *   PRICE_CENTS       monthly price in cents (default 14999 = $149.99)
+ *   GRACE_DAYS        days after a missed payment before the company is deleted (default 15)
  *   PUBLIC_URL        public address of this server (default: worked out from each request)
  *   SEED_DEMO_SITES   "false" to start the owner company with no sites
  *   ALLOWED_ORIGINS   extra CORS origins for the API (the Android app's origin is always allowed)
@@ -29,7 +34,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
-const VERSION = '2.0.0';
+const VERSION = '2.1.0';
 const PORT = +process.env.PORT || 8080;
 const DATA_DIR = path.resolve(process.env.DATA_DIR || process.env.RAILWAY_VOLUME_MOUNT_PATH || path.join(__dirname, 'data'));
 const REPORT_DIR = path.join(DATA_DIR, 'reports');
@@ -47,9 +52,12 @@ const OWNER_NAME = process.env.OWNER_COMPANY_NAME || '4 Horseman Security';
 const OWNER_CODE = (process.env.OWNER_COMPANY_CODE || 'HORSEMAN').toUpperCase();
 const STRIPE_KEY = process.env.STRIPE_SECRET_KEY || '';
 const STRIPE_API = process.env.STRIPE_API_BASE || 'https://api.stripe.com';
-const PRICE_CENTS = +process.env.PRICE_CENTS || 2999;
+const PRICE_CENTS = +process.env.PRICE_CENTS || 14999;
+const GRACE_MS = (+process.env.GRACE_DAYS || 15) * 86400000;
 const PRICE_LOOKUP = `horseman_company_monthly_${PRICE_CENTS}`;
 const BILLING_SYNC_MS = (+process.env.BILLING_SYNC_MINUTES || 15) * 60000;
+// Stripe Checkout languages for the website's languages (Haitian Creole and Arabic are not offered by Stripe: French / auto).
+const STRIPE_LOCALES = { en: 'en', es: 'es', fr: 'fr', ht: 'fr', pt: 'pt-BR', ar: 'auto', ru: 'ru', de: 'de', fil: 'fil' };
 const ALLOWED_ORIGINS = ['https://appassets.androidplatform.net'].concat((process.env.ALLOWED_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean));
 
 // ---------- helpers ----------
@@ -89,7 +97,12 @@ function writeAtomic(file, data) {
   fs.renameSync(tmp, file);
 }
 function emptyCompany(id, name, code) {
-  return { id, name, code, createdAt: Date.now(), users: [], sites: [], shifts: {}, scans: [], messages: [], acks: {}, deletedUsers: [] };
+  return { id, name, code, createdAt: Date.now(), users: [], sites: [], shifts: {}, scans: [], messages: [], acks: {}, deletedUsers: [], ...emptyOffice() };
+}
+// Website dashboard data: schedule, payroll settings, clients, invoices, client requests.
+function emptyOffice() {
+  return { sched: [], pay: { rates: {}, period: 'biweekly', anchor: '', otWeekly: 40, otDaily: 0, otMult: 1.5 },
+    clients: [], invoices: [], invoiceSeq: 1000, requests: [], profile: { name: '', address: '', phone: '', email: '', payTo: '', terms: 15, taxPct: 0 } };
 }
 function demoSites() {
   const t = Date.now();
@@ -134,6 +147,7 @@ catch (e) {
   S = seedState(); writeAtomic(STATE_FILE, JSON.stringify(S));
 }
 S.pending = S.pending || {};
+for (const C of Object.values(S.companies)) { const e = emptyOffice(); for (const k of Object.keys(e)) if (C[k] === undefined) C[k] = e[k]; }
 const owner = () => S.companies[OWNER_ID];
 if (owner() && owner().code !== OWNER_CODE && !Object.values(S.companies).some(c => c.code === OWNER_CODE)) owner().code = OWNER_CODE;
 // ADMIN_PIN is the owner administrator's recovery PIN: whenever its value changes, the owner administrator
@@ -403,9 +417,18 @@ async function monthlyPrice() {
   console.log(`Created Stripe price ${price.id} ($${(PRICE_CENTS / 100).toFixed(2)}/month)`);
   return (priceId = price.id);
 }
-const billingOf = sub => ({ customer: typeof sub.customer === 'string' ? sub.customer : sub.customer?.id, subscription: sub.id, status: sub.status,
-  periodEnd: sub.current_period_end ? sub.current_period_end * 1000 : null, cancelAtPeriodEnd: !!sub.cancel_at_period_end, checkedAt: Date.now() });
-const ENDED = ['canceled', 'incomplete_expired', 'unpaid'];
+const billingOf = (sub, prev = {}) => {
+  const inv = sub.latest_invoice && typeof sub.latest_invoice === 'object' ? sub.latest_invoice : null;
+  return { customer: typeof sub.customer === 'string' ? sub.customer : sub.customer?.id, subscription: sub.id, status: sub.status,
+    periodEnd: sub.current_period_end ? sub.current_period_end * 1000 : null, cancelAtPeriodEnd: !!sub.cancel_at_period_end,
+    cancelReason: sub.cancellation_details?.reason || null,
+    payUrl: inv && inv.status === 'open' ? inv.hosted_invoice_url || null : null,
+    invoiceDueAt: inv && inv.status === 'open' ? (inv.due_date || inv.period_end || inv.created) * 1000 : null,
+    dueSince: prev.dueSince || null, deleteAt: prev.deleteAt || null, checkedAt: Date.now() };
+};
+// A payment is overdue while the subscription is past due / unpaid, or Stripe cancelled it because payment failed.
+const OVERDUE = b => ['past_due', 'unpaid'].includes(b.status) || (b.status === 'canceled' && b.cancelReason === 'payment_failed');
+const ENDED = ['canceled', 'incomplete_expired'];
 // Completes a paid sign-up exactly once: creates the company and its administrator.
 async function completeSignup(p) {
   if (p.companyId && S.companies[p.companyId]) return S.companies[p.companyId];
@@ -415,13 +438,22 @@ async function completeSignup(p) {
   if (!['active', 'trialing'].includes(sub.status)) return null;
   if (p.companyId && S.companies[p.companyId]) return S.companies[p.companyId];
   const C = createCompany({ name: p.companyName, adminName: p.adminName, email: p.email, pinHash: p.pinHash, billing: billingOf(sub) });
+  C.lang = p.lang || 'en';
   p.companyId = C.id; delete p.pinHash; flush();
   return C;
 }
 async function refreshBilling(C) {
   if (C.owner || !C.billing?.subscription) return;
-  const sub = await stripe('GET', `/v1/subscriptions/${encodeURIComponent(C.billing.subscription)}`);
-  C.billing = billingOf(sub); save();
+  const sub = await stripe('GET', `/v1/subscriptions/${encodeURIComponent(C.billing.subscription)}`, { expand: ['latest_invoice'] });
+  const b = C.billing = billingOf(sub, C.billing);
+  if (OVERDUE(b)) {
+    // The grace period counts from the scheduled payment date (the date of the unpaid invoice).
+    if (!b.dueSince) b.dueSince = Math.min(b.invoiceDueAt || Date.now(), Date.now());
+    b.deleteAt = b.dueSince + GRACE_MS; save();
+    if (Date.now() >= b.deleteAt) deleteCompany(C, `payment ${Math.round(GRACE_MS / 86400000)} days overdue`);
+    return;
+  }
+  b.dueSince = b.deleteAt = null; save();
   if (ENDED.includes(sub.status)) deleteCompany(C, `subscription ${sub.status}`);
 }
 let syncing = false;
@@ -437,6 +469,200 @@ async function billingSync() {
     }
     save();
   } finally { syncing = false; }
+}
+
+
+// ---------- website dashboard ----------
+const cents = v => { const n = Math.round(+v); return isFinite(n) && n >= 0 && n < 1e9 ? n : 0; };
+const ymd = v => /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : '';
+const publicClient = c => ({ id: c.id, name: c.name, contact: c.contact, email: c.email, phone: c.phone, address: c.address, siteIds: c.siteIds,
+  rate: c.rate, terms: c.terms, portal: !!c.portalPinHash, createdAt: c.createdAt });
+function dashState(C, me) {
+  const cutoff = Date.now() - 400 * 86400000;
+  return {
+    company: publicCompany(C), me: publicUser(me), lang: C.lang || 'en',
+    users: C.users.map(u => ({ ...publicUser(u), rate: C.pay.rates[u.id] || 0 })),
+    sites: C.sites.map(s => ({ id: s.id, name: s.name, address: s.address, checkpoints: s.checkpoints.length })),
+    sched: C.sched.filter(x => x.end > cutoff), pay: C.pay, profile: C.profile,
+    clients: C.clients.map(publicClient), invoices: C.invoices, requests: C.requests,
+    onDuty: Object.values(C.shifts).filter(s => !s.outAt).map(s => ({ id: s.id, userId: s.userId, siteId: s.siteId, inAt: s.inAt, inFence: s.inFence })),
+    limits: { sites: MAX_SITES, officersPerSite: MAX_PER_SITE, officers: MAX_OFFICERS }
+  };
+}
+const userIn = (C, id) => C.users.some(u => u.id === id) ? id : fail(400, 'Choose an officer');
+const siteIn = (C, id) => C.sites.some(s => s.id === id) ? id : fail(400, 'Choose a site');
+const newId = pre => pre + crypto.randomUUID().replace(/-/g, '').slice(0, 14);
+function invoiceTotals(inv) {
+  const sub = inv.lines.reduce((a, l) => a + Math.round(l.qty * l.rate), 0);
+  const tax = Math.round(sub * (inv.taxPct || 0) / 100);
+  return { subtotal: sub, tax, total: sub + tax };
+}
+const D = {
+  // Schedule: one or many shifts at once (the dashboard's "repeat" and "copy week" send several).
+  schedSave(C, u, d) {
+    const list = Array.isArray(d.items) ? d.items : [d];
+    if (list.length > 500) fail(400, 'Too many shifts at once');
+    for (const x of list) {
+      const start = num(x.start), end = num(x.end);
+      if (!start || !end || end <= start) fail(400, 'The shift must end after it starts');
+      if (end - start > 24 * 3600000) fail(400, 'A shift can be at most 24 hours');
+      const item = { id: str(x.id, 80) || newId('sh'), userId: x.userId ? userIn(C, str(x.userId, 80)) : '', siteId: siteIn(C, str(x.siteId, 80)),
+        start, end, note: str(x.note, 300), srvAt: clock() };
+      const i = C.sched.findIndex(y => y.id === item.id);
+      if (i >= 0) C.sched[i] = item; else C.sched.push(item);
+    }
+    const cutoff = Date.now() - 400 * 86400000;
+    C.sched = C.sched.filter(x => x.end > cutoff).slice(-8000);
+  },
+  schedDelete(C, u, d) { const ids = new Set((Array.isArray(d.ids) ? d.ids : [d.id]).map(x => str(x, 80))); C.sched = C.sched.filter(x => !ids.has(x.id)); },
+  // Payroll settings and pay rates (cents per hour).
+  paySettings(C, u, d) {
+    const p = C.pay;
+    if (d.period !== undefined) p.period = ['weekly', 'biweekly', 'semimonthly', 'monthly'].includes(d.period) ? d.period : 'biweekly';
+    if (d.anchor !== undefined) p.anchor = ymd(d.anchor);
+    if (d.otWeekly !== undefined) p.otWeekly = Math.min(168, Math.max(0, +d.otWeekly || 0));
+    if (d.otDaily !== undefined) p.otDaily = Math.min(24, Math.max(0, +d.otDaily || 0));
+    if (d.otMult !== undefined) p.otMult = Math.min(3, Math.max(1, +d.otMult || 1.5));
+    if (d.rates && typeof d.rates === 'object') for (const [id, v] of Object.entries(d.rates)) if (C.users.some(x => x.id === id)) p.rates[id] = cents(v);
+  },
+  profile(C, u, d) {
+    const p = C.profile;
+    for (const k of ['name', 'address', 'phone', 'email', 'payTo']) if (d[k] !== undefined) p[k] = str(d[k], k === 'payTo' || k === 'address' ? 600 : 160);
+    if (d.terms !== undefined) p.terms = Math.min(120, Math.max(0, Math.round(+d.terms || 0)));
+    if (d.taxPct !== undefined) p.taxPct = Math.min(50, Math.max(0, +d.taxPct || 0));
+    if (d.lang !== undefined) C.lang = str(d.lang, 8);
+  },
+  // Clients: the properties / businesses the security company works for.
+  clientSave(C, u, d) {
+    const id = str(d.id, 80);
+    let c = id && C.clients.find(x => x.id === id);
+    if (!c) { if (C.clients.length >= 200) fail(409, 'Limit of 200 clients reached'); c = { id: newId('cl'), createdAt: Date.now() }; C.clients.push(c); }
+    const name = str(d.name, 160).trim(); if (!name) fail(400, 'Enter the client name');
+    const email = str(d.email, 200).trim().toLowerCase();
+    if (email && !isEmail(email)) fail(400, 'Enter a valid email address');
+    if (email && C.clients.some(x => x.id !== c.id && x.email === email)) fail(409, 'Another client already uses this email address');
+    Object.assign(c, { name, contact: str(d.contact, 160), email, phone: str(d.phone, 40), address: str(d.address, 300),
+      siteIds: (Array.isArray(d.siteIds) ? d.siteIds : []).map(x => str(x, 80)).filter(x => C.sites.some(s => s.id === x)),
+      rate: cents(d.rate), terms: d.terms === '' || d.terms == null ? null : Math.min(120, Math.max(0, Math.round(+d.terms || 0))) });
+    if (d.portalPin !== undefined && d.portalPin !== '') {
+      if (!isPin(String(d.portalPin))) fail(400, 'Portal PIN must be 4–8 digits');
+      if (!c.email) fail(400, 'Add the client\'s email address: it is their portal sign-in');
+      c.portalPinHash = hashPin(String(d.portalPin)); endClientSessions(C, c.id);
+    }
+    if (d.portalOff) { delete c.portalPinHash; endClientSessions(C, c.id); }
+    return { id: c.id };
+  },
+  clientDelete(C, u, d) {
+    const id = str(d.id, 80);
+    if (C.invoices.some(i => i.clientId === id && i.status !== 'void' && i.status !== 'paid')) fail(409, 'This client has unpaid invoices. Mark them paid or void first.');
+    C.clients = C.clients.filter(x => x.id !== id); endClientSessions(C, id);
+  },
+  // Invoices: built in the dashboard from worked hours, saved here. Numbers are given by the server.
+  invoiceSave(C, u, d) {
+    const id = str(d.id, 80);
+    let inv = id && C.invoices.find(x => x.id === id);
+    if (inv && inv.status !== 'draft') fail(409, 'Only draft invoices can be edited');
+    const clientId = str(d.clientId, 80); if (!C.clients.some(c => c.id === clientId)) fail(400, 'Choose a client');
+    const lines = (Array.isArray(d.lines) ? d.lines : []).slice(0, 200).map(l => ({ desc: str(l.desc, 300), qty: Math.round((+l.qty || 0) * 100) / 100, rate: cents(l.rate) }))
+      .filter(l => l.desc || l.qty);
+    if (!lines.length) fail(400, 'Add at least one line');
+    if (!inv) { if (C.invoices.length >= 5000) C.invoices.shift(); inv = { id: newId('in'), number: String(++C.invoiceSeq), status: 'draft', createdAt: Date.now() }; C.invoices.push(inv); }
+    Object.assign(inv, { clientId, lines, from: ymd(d.from), to: ymd(d.to), issued: ymd(d.issued) || new Date().toISOString().slice(0, 10), due: ymd(d.due),
+      taxPct: Math.min(50, Math.max(0, +d.taxPct || 0)), notes: str(d.notes, 2000), updatedAt: Date.now() });
+    Object.assign(inv, invoiceTotals(inv));
+    return { id: inv.id };
+  },
+  invoiceStatus(C, u, d) {
+    const inv = C.invoices.find(x => x.id === str(d.id, 80)) || fail(404, 'Invoice not found');
+    const st = str(d.status, 10); if (!['draft', 'sent', 'paid', 'void'].includes(st)) fail(400, 'Unknown status');
+    if (inv.status === 'void') fail(409, 'A void invoice cannot be changed');
+    inv.status = st; inv.updatedAt = Date.now();
+    if (st === 'sent' && !inv.sentAt) inv.sentAt = Date.now();
+    if (st === 'paid') inv.paidAt = num(d.paidAt) || Date.now(); else delete inv.paidAt;
+  },
+  invoiceDelete(C, u, d) {
+    const inv = C.invoices.find(x => x.id === str(d.id, 80)); if (!inv) return;
+    if (inv.status !== 'draft') fail(409, 'Only drafts can be deleted. Void a sent invoice instead.');
+    C.invoices = C.invoices.filter(x => x !== inv);
+  },
+  requestReply(C, u, d) {
+    const r = C.requests.find(x => x.id === str(d.id, 80)) || fail(404, 'Request not found');
+    const text = str(d.text, 4000).trim();
+    if (text) r.thread.push({ from: 'company', name: u.name, text, at: Date.now() });
+    if (d.status) r.status = d.status === 'closed' ? 'closed' : 'open';
+    r.updatedAt = Date.now();
+  }
+};
+function endClientSessions(C, clientId) { for (const [k, s] of Object.entries(S.sessions)) if (s.kind === 'client' && s.companyId === C.id && s.clientId === clientId) delete S.sessions[k]; }
+
+// ---------- client portal ----------
+function authClient(req) {
+  const m = /^Bearer (.+)$/.exec(req.headers.authorization || ''); if (!m) return null;
+  const s = S.sessions[sha(m[1])]; if (!s || s.kind !== 'client' || s.exp < Date.now()) return null;
+  const C = S.companies[s.companyId]; const c = C && C.clients.find(x => x.id === s.clientId);
+  return c && c.portalPinHash ? { C, c, tokenHash: sha(m[1]) } : null;
+}
+function clientState(C, c, days) {
+  const from = Date.now() - days * 86400000, sites = new Set(c.siteIds);
+  const name = id => C.users.find(u => u.id === id)?.name || 'Officer';
+  const cpName = (sid, cid) => C.sites.find(s => s.id === sid)?.checkpoints.find(x => x.id === cid)?.name || 'Checkpoint';
+  return {
+    company: { name: C.name, code: C.code, phone: C.profile.phone, email: C.profile.email || C.email || '', lang: C.lang || 'en' },
+    client: { id: c.id, name: c.name, contact: c.contact, email: c.email },
+    sites: C.sites.filter(s => sites.has(s.id)).map(s => ({ id: s.id, name: s.name, address: s.address })),
+    reports: [...reports.values()].filter(r => r.companyId === C.id && sites.has(r.siteId) && (r.occurredAt || r.createdAt) > from)
+      .sort((a, b) => b.createdAt - a.createdAt).slice(0, 300)
+      .map(r => ({ id: r.id, type: r.type, siteId: r.siteId, userName: r.userName, occurredAt: r.occurredAt, createdAt: r.createdAt, category: r.category,
+        severity: r.severity, location: r.location, description: r.description, actions: r.actions, authorities: r.authorities, caseNo: r.caseNo,
+        timeline: r.timeline, weather: r.weather, photos: r.photos, reviewedAt: r.reviewedAt })),
+    shifts: Object.values(C.shifts).filter(s => sites.has(s.siteId) && s.inAt && (s.outAt || Date.now()) > from).sort((a, b) => b.inAt - a.inAt).slice(0, 1000)
+      .map(s => ({ id: s.id, siteId: s.siteId, officer: name(s.userId), inAt: s.inAt, outAt: s.outAt, inFence: s.inFence })),
+    scans: C.scans.filter(x => sites.has(x.siteId) && x.at > from).slice(-3000).reverse()
+      .map(x => ({ id: x.id, siteId: x.siteId, checkpoint: cpName(x.siteId, x.cpId), officer: name(x.userId), at: x.at, status: x.status, note: x.note })),
+    invoices: C.invoices.filter(i => i.clientId === c.id && i.status !== 'draft'),
+    profile: C.profile,
+    requests: C.requests.filter(r => r.clientId === c.id)
+  };
+}
+async function clientRoute(req, res, p, url) {
+  if (req.method === 'POST' && p === '/api/client/login') {
+    const b = await readJson(req);
+    const code = normCode(b.company), email = str(b.email, 200).trim().toLowerCase(), pin = str(b.pin, 20);
+    const key = `client|${ip(req)}|${code}|${email}`; throttle(key);
+    const C = companyByCode(code), c = C && email && C.clients.find(x => x.email === email);
+    if (!c || !c.portalPinHash || !checkPin(pin, c.portalPinHash)) { failed(key); fail(401, C ? 'Email or PIN not recognised' : 'Company code not recognised'); }
+    attempts.delete(key);
+    const token = crypto.randomBytes(32).toString('base64url');
+    S.sessions[sha(token)] = { kind: 'client', clientId: c.id, companyId: C.id, exp: Date.now() + SESSION_MS, at: Date.now() };
+    save();
+    return send(res, 200, { token });
+  }
+  const a = authClient(req); if (!a) fail(401, 'Please sign in again');
+  const { C, c, tokenHash } = a;
+  if (req.method === 'POST' && p === '/api/client/logout') { delete S.sessions[tokenHash]; save(); return send(res, 200, { ok: true }); }
+  if (req.method === 'GET' && p === '/api/client/state') return send(res, 200, clientState(C, c, Math.min(366, Math.max(1, +url.searchParams.get('days') || 30))));
+  if (req.method === 'POST' && p === '/api/client/request') {
+    const b = await readJson(req);
+    const subject = str(b.subject, 160).trim(), text = str(b.text, 4000).trim();
+    if (!subject || !text) fail(400, 'Enter a subject and a message');
+    if (C.requests.filter(r => r.clientId === c.id && r.at > Date.now() - 86400000).length >= 30) fail(429, 'Too many requests today. Please call us instead.');
+    const r = { id: newId('rq'), clientId: c.id, clientName: c.name, subject, status: 'open', at: Date.now(), updatedAt: Date.now(),
+      siteId: c.siteIds.includes(str(b.siteId, 80)) ? str(b.siteId, 80) : '', thread: [{ from: 'client', name: c.contact || c.name, text, at: Date.now() }] };
+    C.requests.push(r); if (C.requests.length > 3000) C.requests.shift();
+    C.messages.push({ id: 'm' + crypto.randomUUID(), channel: 'admin', from: 'system', fromName: 'System', system: true, at: Date.now(), srvAt: clock(),
+      text: `Client request from ${c.name}: ${subject}` });
+    save(); return send(res, 200, { ok: true, id: r.id });
+  }
+  if (req.method === 'POST' && p === '/api/client/reply') {
+    const b = await readJson(req);
+    const r = C.requests.find(x => x.id === str(b.id, 80) && x.clientId === c.id) || fail(404, 'Request not found');
+    const text = str(b.text, 4000).trim(); if (!text) fail(400, 'Write a message');
+    r.thread.push({ from: 'client', name: c.contact || c.name, text, at: Date.now() }); r.status = 'open'; r.updatedAt = Date.now();
+    C.messages.push({ id: 'm' + crypto.randomUUID(), channel: 'admin', from: 'system', fromName: 'System', system: true, at: Date.now(), srvAt: clock(),
+      text: `Client reply from ${c.name}: ${r.subject}` });
+    save(); return send(res, 200, { ok: true });
+  }
+  fail(404, 'Not found');
 }
 
 // ---------- HTTP ----------
@@ -468,7 +694,7 @@ const baseUrl = req => (process.env.PUBLIC_URL || `${(req.headers['x-forwarded-p
 
 const TYPES = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.svg': 'image/svg+xml',
   '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.ico': 'image/x-icon', '.json': 'application/json', '.mp4': 'video/mp4', '.txt': 'text/plain; charset=utf-8' };
-const PAGES = { '/': 'index.html', '/signup': 'signup.html', '/signup/success': 'success.html', '/login': 'login.html', '/account': 'account.html', '/terms': 'terms.html', '/privacy': 'privacy.html' };
+const PAGES = { '/': 'index.html', '/signup': 'signup.html', '/signup/success': 'success.html', '/login': 'login.html', '/account': 'account.html', '/client': 'client.html', '/terms': 'terms.html', '/privacy': 'privacy.html' };
 function sendFile(res, dir, rel, status = 200) {
   const file = path.join(dir, path.normalize('/' + rel).slice(1));
   if (!file.startsWith(dir + path.sep)) return false;
@@ -506,7 +732,7 @@ async function route(req, res) {
   }
 
   if (req.method === 'GET' && p === '/api/health') return send(res, 200, { ok: true, server: 'guard-patrol', version: VERSION });
-  if (req.method === 'GET' && p === '/api/plan') return send(res, 200, { price: PRICE_CENTS, currency: 'usd', interval: 'month', signupOpen: !!STRIPE_KEY,
+  if (req.method === 'GET' && p === '/api/plan') return send(res, 200, { price: PRICE_CENTS, currency: 'usd', interval: 'month', signupOpen: !!STRIPE_KEY, graceDays: Math.round(GRACE_MS / 86400000),
     limits: { sites: MAX_SITES, officersPerSite: MAX_PER_SITE, officers: MAX_OFFICERS, tourLocationsPerSite: MAX_CHECKPOINTS } });
 
   // ----- sign-up: details → Stripe Checkout → company created once payment succeeds -----
@@ -528,9 +754,10 @@ async function route(req, res) {
     const cs = await stripe('POST', '/v1/checkout/sessions', {
       mode: 'subscription', line_items: [{ price, quantity: 1 }], client_reference_id: id, customer_email: email,
       success_url: `${base}/signup/success?session_id={CHECKOUT_SESSION_ID}`, cancel_url: `${base}/signup?canceled=1`,
+      locale: STRIPE_LOCALES[str(b.lang, 8)] || 'auto',
       metadata: { pending: id, company: companyName }, subscription_data: { metadata: { pending: id, company: companyName } }
     });
-    S.pending[id] = { id, sessionId: cs.id, companyName, adminName, email, pinHash: hashPin(pin), createdAt: Date.now() };
+    S.pending[id] = { id, sessionId: cs.id, companyName, adminName, email, pinHash: hashPin(pin), lang: str(b.lang, 8), createdAt: Date.now() };
     save();
     return send(res, 200, { url: cs.url });
   }
@@ -543,6 +770,9 @@ async function route(req, res) {
     return send(res, 200, { company: publicCompany(C), badge: C.users.find(u => u.role === 'admin')?.badge || '1000', adminName: C.users.find(u => u.role === 'admin')?.name });
   }
 
+
+  // ----- client portal (a company's customers: company code + email + portal PIN) -----
+  if (p.startsWith('/api/client/')) return clientRoute(req, res, p, url);
   if (req.method === 'POST' && p === '/api/login') {
     const b = await readJson(req);
     const code = normCode(b.company) || OWNER_CODE;
@@ -592,6 +822,23 @@ async function route(req, res) {
     });
   }
 
+
+  // ----- administrator dashboard (website): scheduling, payroll, billing, client portal -----
+  if (p === '/api/dash' || p.startsWith('/api/dash/')) {
+    if (!isAdmin(me)) fail(403, 'Only the company administrator can use the dashboard');
+    if (req.method === 'GET' && p === '/api/dash') return send(res, 200, dashState(C, me));
+    if (req.method === 'GET' && p === '/api/dash/shifts') {
+      const from = +url.searchParams.get('from') || 0, to = +url.searchParams.get('to') || Date.now();
+      return send(res, 200, { shifts: Object.values(C.shifts).filter(s => s.inAt && s.inAt < to && (s.outAt || Date.now()) > from)
+        .map(s => ({ id: s.id, userId: s.userId, siteId: s.siteId, inAt: s.inAt, outAt: s.outAt, inFence: s.inFence })) });
+    }
+    if (req.method === 'POST') {
+      const fn = Object.hasOwn(D, p.slice(10)) && D[p.slice(10)]; if (!fn) fail(404, 'Not found');
+      const out = fn(C, me, await readJson(req)) || {};
+      save(); return send(res, 200, { ok: true, ...out, state: dashState(C, me) });
+    }
+  }
+
   // ----- account & billing (company administrator) -----
   if (p.startsWith('/api/account')) {
     if (!isAdmin(me)) fail(403, 'Only the company administrator can manage the account');
@@ -599,14 +846,16 @@ async function route(req, res) {
       try { await refreshBilling(C); } catch (e) { }
       if (!S.companies[C.id]) fail(410, 'This subscription has ended and the company account was removed.');
       return send(res, 200, { company: { ...publicCompany(C), createdAt: C.createdAt, email: C.email || '' }, me: publicUser(me),
-        billing: C.owner ? { status: 'owner' } : C.billing ? { status: C.billing.status, periodEnd: C.billing.periodEnd, cancelAtPeriodEnd: C.billing.cancelAtPeriodEnd } : { status: 'none' },
+        billing: C.owner ? { status: 'owner' } : C.billing ? { status: C.billing.status, periodEnd: C.billing.periodEnd, cancelAtPeriodEnd: C.billing.cancelAtPeriodEnd,
+          overdue: OVERDUE(C.billing), dueSince: C.billing.dueSince, deleteAt: C.billing.deleteAt, payUrl: C.billing.payUrl } : { status: 'none' },
+        graceDays: Math.round(GRACE_MS / 86400000),
         price: PRICE_CENTS,
         usage: { sites: C.sites.length, maxSites: MAX_SITES, officers: C.users.filter(x => x.role !== 'admin').length, maxOfficers: MAX_OFFICERS } });
     }
     if (C.owner || !C.billing?.subscription) fail(400, 'This company has no subscription to manage');
     if (req.method === 'POST' && (p === '/api/account/cancel' || p === '/api/account/resume')) {
       const sub = await stripe('POST', `/v1/subscriptions/${encodeURIComponent(C.billing.subscription)}`, { cancel_at_period_end: p.endsWith('cancel') ? 'true' : 'false' });
-      C.billing = billingOf(sub); save();
+      C.billing = billingOf(sub, C.billing); save();
       return send(res, 200, { ok: true, cancelAtPeriodEnd: C.billing.cancelAtPeriodEnd, periodEnd: C.billing.periodEnd });
     }
     if (req.method === 'POST' && p === '/api/account/portal') {

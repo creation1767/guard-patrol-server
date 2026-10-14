@@ -2,7 +2,7 @@
 
 One small Node.js program (no dependencies, Node 18+) that runs:
 
-- **The website**: home page, sign-up with a $29.99/month Stripe subscription, log in, and an account and billing page for company administrators.
+- **The website**: home page, sign-up with a $149.99/month recurring Stripe subscription, log in, an administrator dashboard (account & billing, scheduling, payroll, client invoicing, client portal accounts) and a client portal at /client.
 - **The web app** at `/app/`: the same app as on Android, in a browser.
 - **The API** the Android app and web app use to sync accounts, sites, shifts, guard tours, reports and messages.
 
@@ -20,7 +20,7 @@ One small Node.js program (no dependencies, Node 18+) that runs:
 3. On the account page, administrators can update their card (Stripe billing portal), cancel (access continues to the end of the paid month), or undo a cancellation.
 4. Every 15 minutes the server checks each subscription with Stripe. When a subscription has **ended** (cancelled, or Stripe stopped retrying a failed payment), that company and all of its data are **deleted**.
 
-The server creates the Stripe product and the $29.99/month price itself on first use. The only setup is one variable.
+The server creates the Stripe product and the $149.99/month price itself on first use. The only setup is one variable.
 
 ### Turn on payments
 
@@ -54,3 +54,19 @@ Dockerfile     how Railway builds it
 ```
 
 When the Android app's `www` files change, copy them into `app/` so the web app matches.
+
+## Version 2.1 additions
+
+- **Price:** $149.99 a month, charged automatically through Stripe (`PRICE_CENTS`, default 14999). A new Stripe price is created
+  automatically on first use; existing subscribers stay on the price they signed up with.
+- **Missed payments:** a company whose monthly payment fails keeps everything for `GRACE_DAYS` (default 15) days after the
+  scheduled payment date; the dashboard shows a warning with a Pay now button. After that it is deleted. In the Stripe Dashboard
+  (Billing → Revenue recovery → Retries) set retries to run for at least 15 days and choose *mark the subscription as unpaid* or
+  *leave it past due* when retries run out, so a late payment still reactivates the subscription.
+- **Administrator dashboard** (website `/account`, administrators only): Overview, Schedule (weekly shift planner with repeat and
+  copy-week), Payroll (hours from check-ins × pay rates, weekly/daily overtime, Excel and CSV export; no money is moved),
+  Billing (client invoices filled from hours worked, print/PDF, email, sent/paid/void tracking), Clients & portal, Settings.
+- **Client portal** (`/client`): a company's clients sign in with the company code, their email and a portal PIN, and see
+  reports, check-ins and guard-tour scans for their own sites, their invoices, and send service requests.
+- **Languages:** English, Español, Français, Kreyòl ayisyen, Português, العربية (right-to-left), Русский, Deutsch, Filipino —
+  website, dashboard, client portal and the app. `i18n.js` translates each page from the dictionaries in `i18n/<lang>.js`.
