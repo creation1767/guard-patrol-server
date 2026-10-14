@@ -23,7 +23,7 @@
     <p class="muted small">You'll be the administrator of your company's account.</p>
     <div class="alert info" id="closed" hidden>Online sign-up opens soon. Please check back shortly.</div>
     <div class="alert info" id="canceled" hidden>Payment was cancelled, so nothing was charged. You can try again below.</div>
-    <div class="field"><label for="companyName">Company name</label><input id="companyName" name="companyName" required maxlength="120" autocomplete="organization"></div>
+    <div class="field"><label for="companyName">Company name</label><input id="companyName" name="companyName" required aria-required="true" maxlength="120" autocomplete="organization"><p class="hint">This is also your company code. You and your officers type it to sign in: <b class="gold" id="codePreview">—</b></p></div>
     <div class="field"><label for="adminName">Your name</label><input id="adminName" name="adminName" required maxlength="120" autocomplete="name"></div>
     <div class="field"><label for="email">Email</label><input id="email" name="email" type="email" required maxlength="200" autocomplete="email"><p class="hint">For receipts and billing from Stripe.</p></div>
     <div class="row2">
@@ -57,10 +57,14 @@
   const f = HM.$('#f'), err = HM.$('#err'), go = HM.$('#go');
   if (new URLSearchParams(location.search).get('canceled')) HM.$('#canceled').hidden = false;
   HM.api('GET', '/api/plan').then(p => { document.querySelectorAll('[data-price]').forEach(e => e.textContent = HM.money(p.price)); if (!p.signupOpen) { HM.$('#closed').hidden = false; go.disabled = true; } }).catch(() => {});
+  const cn = HM.$('#companyName'), cp = HM.$('#codePreview');
+  const toCode = n => n.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  cn.addEventListener('input', () => { cp.textContent = toCode(cn.value) || '—'; });
   f.addEventListener('submit', async e => {
     e.preventDefault(); HM.alertBox(err, '');
     const v = Object.fromEntries(new FormData(f));
     if (v.companyName.trim().length < 2) return HM.alertBox(err, 'Enter your company name.');
+    if (toCode(v.companyName).length < 2) return HM.alertBox(err, 'Your company name must include at least two letters or numbers.');
     if (v.adminName.trim().length < 2) return HM.alertBox(err, 'Enter your name.');
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.email.trim())) return HM.alertBox(err, 'Enter a valid email address.');
     if (!/^\d{4,8}$/.test(v.pin)) return HM.alertBox(err, 'Your PIN must be 4–8 digits.');
