@@ -463,7 +463,18 @@ function sendFile(res, dir, rel, status = 200) {
   if (!file.startsWith(dir + path.sep)) return false;
   let data; try { data = fs.readFileSync(file); } catch (e) { return false; }
   const ext = path.extname(file).toLowerCase();
-  res.writeHead(status, { 'Content-Type': TYPES[ext] || 'application/octet-stream', 'Cache-Control': ext === '.html' || ext === '.js' || ext === '.css' ? 'no-cache' : 'public, max-age=86400', ...SECURITY_HEADERS });
+  const head = { 'Content-Type': TYPES[ext] || 'application/octet-stream', 'Cache-Control': ext === '.html' || ext === '.js' || ext === '.css' ? 'no-cache' : 'public, max-age=86400', 'Accept-Ranges': 'bytes', ...SECURITY_HEADERS };
+  // Byte ranges: Safari and iPhones only play video when the server answers range requests.
+  const m = status === 200 && /^bytes=(\d*)-(\d*)$/.exec(res.req?.headers.range || '');
+  if (m && (m[1] || m[2])) {
+    const size = data.length;
+    let start = m[1] ? +m[1] : size - +m[2], end = m[1] && m[2] ? Math.min(+m[2], size - 1) : size - 1;
+    if (start < 0) start = 0;
+    if (start >= size || start > end) { res.writeHead(416, { 'Content-Range': `bytes */${size}`, ...SECURITY_HEADERS }); res.end(); return true; }
+    res.writeHead(206, { ...head, 'Content-Range': `bytes ${start}-${end}/${size}`, 'Content-Length': end - start + 1 });
+    res.end(data.subarray(start, end + 1)); return true;
+  }
+  res.writeHead(status, head);
   res.end(data); return true;
 }
 
