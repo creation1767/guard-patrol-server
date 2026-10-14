@@ -223,3 +223,8 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--gold);bo
 .lang-select { width: auto; min-width: 150px; }
 .brandbar .wordmark { white-space: nowrap; } .brandbar .grow { min-width: 0; } .brandbar .label { overflow: hidden; text-overflow: ellipsis; }
 [dir="rtl"] .wordmark, [dir="rtl"] .note, [dir="rtl"] [translate="no"] { unicode-bidi: plaintext; }
+
+/* my schedule */
+.sched-next { text-decoration: none; color: inherit; align-items: center; }
+.sched-item.done { opacity: .55; }
+.sched-item .btn-sm { display: inline-flex; width: auto; }

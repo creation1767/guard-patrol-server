@@ -65,6 +65,7 @@ const P = {
   trash: 'M4 7h16M9 7V4h6v3M6 7l1 14h10l1-14',
   key: 'M14 10a5 5 0 1 0-1.5 3.5L14 15h2v2h2v2h3v-3l-6.5-6.5',
   sheet: 'M4 4h16v16H4zM4 9h16M4 14h16M10 9v11',
+  calendar: 'M4 6h16v15H4zM4 10h16M8 3v4M16 3v4M8 14h2M14 14h2M8 17h2',
   globe: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3'
 };
 // 4 Horseman emblem (shield, four stars, horse head). Ids are prefixed per use so gradients never collide.
@@ -370,6 +371,7 @@ function render() {
     case 'messages': html = a ? Chat(a) : Channels(); break;
     case 'more': html = More(); break;
     case 'history': html = History(); break;
+    case 'schedule': html = MySchedule(); break;
     case 'board': html = Board(); break;
     case 'admin':
       html = a === 'site' ? AdminSite(b) : a === 'officers' ? AdminOfficers() : a === 'qr' ? QrSheet(b) : AdminSites(); break;
@@ -377,7 +379,7 @@ function render() {
   }
   app.innerHTML = html;
   window.scrollTo(0, 0);
-  const tabFor = { checkin: 'home', orders: 'home', report: 'reports', history: 'more', board: 'more', admin: 'more' }[p] || p;
+  const tabFor = { checkin: 'home', orders: 'home', report: 'reports', history: 'more', schedule: 'more', board: 'more', admin: 'more' }[p] || p;
   $$('.nav a').forEach(el => el.classList.toggle('on', el.dataset.tab === tabFor));
   updateBadge();
   if (p === 'messages' && a) afterChat(a);
@@ -518,6 +520,7 @@ function Home() {
       <a class="btn btn-primary btn-block btn-big" href="#/checkin">${ic('pin', 'sm')} Check in to a site</a>
       <div class="privacy">${ic('eyeOff', 'sm')}<span>Location is not monitored while you are off duty.</span></div>
     </section>`}</div>
+    ${nextShiftCard()}
 
     <div class="section-title"><h3>Quick actions</h3></div>
     <div class="tiles">
@@ -1173,6 +1176,7 @@ function More() {
     <div class="card hl row"><span class="medal">${ic('user')}</span><div class="grow"><h3>${esc(u.name)}</h3><p class="muted small">Badge ${esc(u.badge)} · ${roleName(u.role)}</p></div></div>
     <div class="list" style="margin-top:12px">
       ${row('#', 'key', 'My profile & PIN', '', 'profile')}
+      ${row('#/schedule', 'calendar', 'My schedule', nextShift() ? `<span>${dayLabel(nextShift().start)}</span> · ${shiftRange(nextShift())}` : '')}
       ${row('#/history', 'history', 'Shift history', '')}
       ${row('#/orders', 'clip', 'Post orders', '')}
       ${window.I18N ? `<div class="item"><span class="medal">${ic('globe')}</span><div class="grow"><b>Language</b></div>${langSelect()}</div>` : ''}
@@ -1228,6 +1232,59 @@ function History() {
     <div class="grow"><div class="row between"><b>${esc(siteById(s.siteId)?.name || 'Former site')}</b>${s.outAt ? `<span class="pill">${dur(s.outAt - s.inAt)}</span>` : '<span class="pill ok">On duty</span>'}</div>
     <p class="muted small">${isSup() ? esc(userName(s.userId)) + ' · ' : ''}${fmtDT(s.inAt)} → ${s.outAt ? fmtTime(s.outAt) : 'now'} · ${db.scans.filter(x => x.shiftId === s.id).length} scans${s.inFence === 'out' ? ' · <span style="color:var(--warn)">off-site check-in</span>' : ''}</p>
     ${s.notes ? `<p class="small" style="margin-top:4px">${esc(s.notes)}</p>` : ''}</div></div>`).join('') || empty('history', 'No shifts yet.')}</div></div>`;
+}
+
+// ---------- my schedule (planned by the administrator on the website dashboard) ----------
+const dayKey = t => { const d = new Date(t); d.setHours(0, 0, 0, 0); return d.getTime(); };
+const mySchedule = () => (db.schedule || []).filter(x => !x.open).sort((a, b) => a.start - b.start);
+const shiftRange = x => `${fmtTime(x.start)} – ${fmtTime(x.end)}`;
+const shiftHours = x => (Math.round((x.end - x.start) / 360000) / 10).toFixed(1);
+function dayLabel(t) {
+  const d = dayKey(t), today = dayKey(now());
+  if (d === today) return 'Today';
+  if (d === today + 86400000 || d === dayKey(today + 30 * 3600000)) return 'Tomorrow';
+  return new Date(t).toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' });
+}
+// The next shift that has not ended yet (or the one happening now).
+const nextShift = () => mySchedule().find(x => x.end > now());
+function nextShiftCard() {
+  if (!serverMode()) return '';
+  const x = nextShift(); if (!x) return '';
+  const site = siteById(x.siteId), live = x.start <= now();
+  return `<a class="card hl row sched-next" href="#/schedule" style="margin-top:12px"><span class="medal${live ? ' ok' : ''}">${ic('calendar')}</span>
+    <div class="grow"><span class="label">${live ? 'Scheduled now' : 'Next shift'}</span>
+      <b style="display:block;margin-top:4px"><span>${esc(dayLabel(x.start))}</span> · ${shiftRange(x)}</b>
+      <span class="muted small" translate="no">${esc(site?.name || '')}</span></div><span class="chev">${ic('chev', 'sm')}</span></a>`;
+}
+function MySchedule() {
+  const mine = mySchedule().filter(x => x.end > dayKey(now()));
+  const open = (db.schedule || []).filter(x => x.open && x.end > now());
+  const wk0 = dayKey(now()) - new Date().getDay() * 86400000, wk1 = wk0 + 7 * 86400000;
+  const week = mine.filter(x => x.start >= wk0 && x.start < wk1);
+  const weekH = week.reduce((a, x) => a + (x.end - x.start) / 3600000, 0);
+  const sh = activeShift();
+  const card = (x, isOpen) => {
+    const site = siteById(x.siteId), live = x.start <= now() && x.end > now(), done = x.end <= now();
+    const soon = !done && x.start - now() < 3600000;
+    const status = isOpen ? '<span class="pill warn">Open shift</span>' : live ? '<span class="pill ok">Now</span>' : done ? '<span class="pill">Ended</span>' : '';
+    return `<div class="item sched-item${done ? ' done' : ''}"><span class="medal${live ? ' ok' : ''}">${ic('clock')}</span>
+      <div class="grow"><div class="row between"><b>${shiftRange(x)}</b>${status}</div>
+        <p class="muted small"><span translate="no">${esc(site?.name || 'Former site')}</span> · ${shiftHours(x)} h</p>
+        ${x.note ? `<p class="small" style="margin-top:4px" translate="no">${esc(x.note)}</p>` : ''}
+        ${!isOpen && soon && !sh ? `<a class="btn btn-primary btn-sm" style="margin-top:10px" href="#/checkin">${ic('pin', 'sm')} Check in now</a>` : ''}</div></div>`;
+  };
+  const days = [...new Set(mine.map(x => dayKey(x.start)))];
+  return `${bar('My schedule', '#/more')}<div class="page">
+    ${serverMode() ? '' : `<p class="note">Schedules come from your company server. Connect this phone to see the shifts your administrator plans.</p>`}
+    <div class="tiles"><div class="stat"><span class="label">Shifts this week</span><b>${week.length}</b></div>
+      <div class="stat"><span class="label">Hours this week</span><b>${weekH.toFixed(1)}</b></div></div>
+    ${days.length ? days.map(d => `<div class="section-title"><h3>${esc(dayLabel(d))}</h3></div>
+      <div class="list">${mine.filter(x => dayKey(x.start) === d).map(x => card(x, false)).join('')}</div>`).join('')
+      : empty('calendar', 'No upcoming shifts. Your administrator plans shifts on the website dashboard.')}
+    ${open.length ? `<div class="section-title"><h3>Open shifts at your site</h3></div>
+      <p class="muted small" style="margin:-4px 0 10px">Not assigned to anyone yet. Ask your supervisor if you can take one.</p>
+      <div class="list">${open.map(x => `<div class="section-label label" style="margin:10px 0 6px">${esc(dayLabel(x.start))}</div>${card(x, true)}`).join('')}</div>` : ''}
+    <p class="note">Check in and out with the app as usual. Your hours are taken from your check-ins, not from this schedule.</p></div>`;
 }
 
 // ---------- supervisor: operations board (on-duty officers only) ----------
@@ -1439,7 +1496,7 @@ H.delUser = el => {
 
 // ---------- sync (company server) ----------
 let syncing = false;
-const SAFE_RERENDER = /^(#\/(home|tour|reports|messages|more|board|history|admin|admin\/officers)?)?$/;
+const SAFE_RERENDER = /^(#\/(home|tour|reports|messages|more|board|history|schedule|admin|admin\/officers)?)?$/;
 async function sync() {
   const c = db.config; if (!c.syncUrl || !c.authToken || !me() || syncing || !navigator.onLine) return;
   syncing = true;
@@ -1467,7 +1524,7 @@ async function sync() {
     if (!r.ok) throw new Error('HTTP ' + r.status);
     const st = await r.json();
     const before = JSON.stringify([db.users.length, db.sites, db.messages.length, db.reports.length]);
-    let fresh = 0;
+    let fresh = 0, schedChanged = false;
     mergeUsers(st.users || db.users);
     if (!me()) { toast('Your account was removed by the administrator', 'err'); doLogout(); return; }
     if (Array.isArray(st.sites)) db.sites = st.sites;
@@ -1483,8 +1540,9 @@ async function sync() {
       if (cur) Object.assign(cur, x); else db.shifts.push(x);
     }
     if (st.acks) db.acks[me().id] = { ...(db.acks[me().id] || {}), ...st.acks };
+    if (Array.isArray(st.schedule)) { if (JSON.stringify(st.schedule) !== JSON.stringify(db.schedule || [])) schedChanged = true; db.schedule = st.schedule; }
     c.lastPull = st.now; c.lastSync = now(); c.syncError = ''; save();
-    const changed = before !== JSON.stringify([db.users.length, db.sites, db.messages.length, db.reports.length]);
+    const changed = schedChanged || before !== JSON.stringify([db.users.length, db.sites, db.messages.length, db.reports.length]);
     if (fresh) buzz(120);
     if (changed && $('#modal').hidden && SAFE_RERENDER.test(location.hash)) render();
     else if (changed && /^#\/messages\//.test(location.hash) && $('#modal').hidden) { const v = $('#msgInput')?.value || ''; render(); const i = $('#msgInput'); if (i) i.value = v; }
