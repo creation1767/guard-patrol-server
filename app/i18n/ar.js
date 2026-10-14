@@ -967,5 +967,17 @@ I18N.add('ar', {
 "Welcome to {a}. Your administrator can add sites, guard-tour locations and officers under More.": "مرحبًا بك في {a}. يمكن للمسؤول إضافة المواقع ونقاط الجولة والحراس من \"المزيد\".",
 "Administrator · {a}": "المسؤول · {a}",
 "Supervisor · {a}": "مشرف · {a}",
-"Officer · {a}": "الحارس · {a}"
+"Officer · {a}": "الحارس · {a}",
+"My schedule": "جدولي",
+"Scheduled now": "مجدول الآن",
+"Next shift": "الوردية التالية",
+"Tomorrow": "غدًا",
+"Shifts this week": "ورديات هذا الأسبوع",
+"Hours this week": "ساعات هذا الأسبوع",
+"Now": "الآن",
+"No upcoming shifts. Your administrator plans shifts on the website dashboard.": "لا توجد ورديات قادمة. يخطط المسؤول الورديات في لوحة التحكم على الموقع.",
+"Open shifts at your site": "ورديات شاغرة في موقعك",
+"Not assigned to anyone yet. Ask your supervisor if you can take one.": "لم تُسند لأحد بعد. اسأل مشرفك إن كان بإمكانك أخذ إحداها.",
+"Check in and out with the app as usual. Your hours are taken from your check-ins, not from this schedule.": "سجّل الحضور والانصراف بالتطبيق كالمعتاد. تُحتسب ساعاتك من تسجيلاتك، لا من هذا الجدول.",
+"Schedules come from your company server. Connect this phone to see the shifts your administrator plans.": "تأتي الجداول من خادم شركتك. اربط هذا الهاتف لترى الورديات التي يخططها المسؤول."
 }, ["Signed in as {name} · administrator", "Badge {a} is already in use", "Each site can have up to {a} guard-tour locations", "Each site can have up to {a} officers", "Limit of {a} officer accounts reached", "Limit of {a} sites reached", "The company name \"{a}\" is already taken. Add your city or another word to make it unique.", "{a} is on duty and must check out before changing site", "{a} is on duty and must check out first", "Acknowledged {a} post order(s) for {b}", "All ({a})", "Badge {a} · {b}", "Checked in at {a}", "Checked out from {a}", "Completed tour round {a}", "Could not create the spreadsheet: {a}", "Delete {a}?", "Each site can have up to {a} tour locations", "Good morning, {a}", "Good afternoon, {a}", "Good evening, {a}", "Last scan {a}", "Last scan {a} · issue reported", "Location captured (±{a} m). Tap Save site.", "Location: {a}", "Move this site's {a} officer(s) to another site first", "New ({a})", "Not recorded — {a}", "Occurred: {a}", "Officer: {a}", "On post · {a} m from site centre", "Position {a} · ±{b} m", "Post order updated: \"{a}\". Please review and acknowledge.", "Remove {a}?", "Round {a}", "Round {a} complete", "Server declined a change: {a}", "Severity: {a}", "Since {a}", "Site: {a}", "That checkpoint belongs to {a}", "Up to {a} officers per site. Only the administrator can add or remove officers.", "Welcome, {a}", "of {a} checkpoints", "{a} already has {b} officers", "{a} checked in at {b}", "{a} complete round(s) · current {b}/{c}", "{a} m from post — outside the {b} m perimeter", "{a} new · {b} total", "{a} of {b} accounts used", "{a} of {b} sites · up to {c} tour locations and {d} officers each", "{a} report(s) — {b} incident, {c} daily activity, {d} maintenance & hazard", "{a} round(s) completed this shift", "{a} · since {b}", "{a}h ago", "{a}m ago", "{a}/{b} tour locations · {c}/{d} officers · {e} orders · perimeter not set", "{a}/{b} tour locations · {c}/{d} officers · {e} orders", "{a} order(s) awaiting acknowledgement", "Welcome, {name} · Reports filed by officers at your sites.", "Badge {a} · {b} · {c}", "Badge {a} · {b} · {c} ·", "{a} · {b} · {c} → {d} · {e} scans", "{a} · {b} · {c} → now · {e} scans", "Updated {a}", "{a} · updated {b}", "Client request from {a}: {b}", "Client reply from {a}: {b}", "Welcome to {a}. Your administrator can add sites, guard-tour locations and officers under More.", "Administrator · {a}", "Supervisor · {a}", "Officer · {a}"]);
