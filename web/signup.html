@@ -10,6 +10,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Lora:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/assets/styles.css">
+<script src="/assets/i18n.js"></script>
 </head>
 <body>
 <header class="top"><div class="wrap">
@@ -31,7 +32,7 @@
       <div class="field"><label for="pin2">Confirm PIN</label><input id="pin2" name="pin2" type="password" inputmode="numeric" maxlength="8" required autocomplete="new-password"></div>
     </div>
     <p class="hint dim small" style="margin-top:8px">4–8 digits. You'll sign in with your company code, badge 1000 and this PIN.</p>
-    <label class="check"><input type="checkbox" id="agree" required><span>I agree to the <a href="/terms" target="_blank">Terms</a> and <a href="/privacy" target="_blank">Privacy Policy</a>, including that our company data is deleted when the subscription ends.</span></label>
+    <label class="check"><input type="checkbox" id="agree" required><span>I agree to the <a href="/terms" target="_blank">Terms</a> and <a href="/privacy" target="_blank">Privacy Policy</a>, including automatic monthly payments and that our company data is deleted when the subscription ends or a payment is more than 15 days overdue.</span></label>
     <div class="alert err" id="err" hidden></div>
     <div class="form-actions"><button class="btn btn-gold btn-big" id="go">Continue to secure payment</button>
       <p class="secure"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg> Payment is handled by Stripe. Card details never touch our servers.</p></div>
@@ -43,8 +44,9 @@
     <div class="line"><span class="muted">Officers</span><span>25 per site · 50 total</span></div>
     <div class="line"><span class="muted">Tour locations</span><span>20 per site</span></div>
     <div class="line"><span class="muted">Apps</span><span>Android + web</span></div>
-    <div class="line total"><span>Due today</span><span><span data-price>$29.99</span> / month</span></div>
-    <p class="dim small" style="margin-top:14px">Renews monthly. Cancel anytime from your account page.</p>
+    <div class="line"><span class="muted">Office tools</span><span>Scheduling, payroll, billing, client portal</span></div>
+    <div class="line total"><span>Due today</span><span><span data-price>$149.99</span> / month</span></div>
+    <p class="dim small" style="margin-top:14px">Charged automatically every month. Cancel anytime from your account page.</p>
   </aside>
 </div></main>
 <footer><div class="wrap">
@@ -71,7 +73,7 @@
     if (v.pin !== v.pin2) return HM.alertBox(err, 'The two PINs do not match.');
     if (!HM.$('#agree').checked) return HM.alertBox(err, 'Please accept the Terms and Privacy Policy.');
     go.disabled = true; go.textContent = 'Opening secure checkout…';
-    try { const r = await HM.api('POST', '/api/signup', { companyName: v.companyName.trim(), adminName: v.adminName.trim(), email: v.email.trim(), pin: v.pin }); location.href = r.url; }
+    try { const r = await HM.api('POST', '/api/signup', { companyName: v.companyName.trim(), adminName: v.adminName.trim(), email: v.email.trim(), pin: v.pin, lang: (window.I18N && I18N.lang) || 'en' }); location.href = r.url; }
     catch (x) { HM.alertBox(err, x.message); go.disabled = false; go.textContent = 'Continue to secure payment'; }
   });
 })();

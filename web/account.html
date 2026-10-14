@@ -3,95 +3,44 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Account · 4 Horseman Security</title>
+<title>Dashboard · 4 Horseman Security</title>
 <meta name="theme-color" content="#06080e">
 <meta name="robots" content="noindex">
 <link rel="icon" href="/assets/favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Lora:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/assets/styles.css">
+<link rel="stylesheet" href="/assets/dash.css">
+<script src="/assets/i18n.js"></script>
 </head>
-<body>
-<header class="top"><div class="wrap">
+<body class="dash-body">
+<header class="top"><div class="wrap dash-wrap">
   <a class="brand" href="/"><img src="/assets/logo-mark.svg" alt=""><span><b>4 HORSEMAN</b><small>SECURITY · LEVEL 2 &amp; 3</small></span></a>
-  <nav><a class="link hide-sm" href="/#features">Features</a><a class="link hide-sm" href="/#pricing">Pricing</a><a class="link" href="/login" data-login-link>Log in</a><a class="btn btn-gold btn-sm" href="/signup">Get started</a></nav>
+  <nav><span data-lang-slot></span><a class="btn btn-ghost btn-sm hide-sm" id="openApp" href="/app/">Open web app</a><button class="btn btn-ghost btn-sm" id="logout">Log out</button></nav>
 </div></header>
-<main class="acct">
+<div class="tabs-bar"><div class="wrap dash-wrap"><nav class="tabs" id="tabs" aria-label="Dashboard">
+  <a href="#overview" data-tab="overview">Overview</a>
+  <a href="#schedule" data-tab="schedule">Schedule</a>
+  <a href="#payroll" data-tab="payroll">Payroll</a>
+  <a href="#billing" data-tab="billing">Billing</a>
+  <a href="#clients" data-tab="clients">Clients &amp; portal</a>
+  <a href="#settings" data-tab="settings">Settings</a>
+</nav></div></div>
+<main class="dash wrap dash-wrap">
   <div id="loading"><div class="spinner"></div></div>
-  <div id="view" hidden>
-    <div class="acct-head">
-      <div><span class="eyebrow">Company account</span><h1 style="font-size:40px;margin-top:10px" id="cname"></h1><p class="muted" id="who"></p></div>
-      <div class="btn-row" style="margin:0"><a class="btn btn-gold" id="openApp" href="/app/">Open web app</a><button class="btn btn-ghost" id="logout">Log out</button></div>
-    </div>
-    <div class="alert" id="msg" hidden></div>
-    <div class="acct-grid">
-      <div class="card hl">
-        <span class="eyebrow">Company code</span>
-        <div class="bigcode gold-text" id="code"></div>
-        <p class="muted small">Officers sign in with this code plus their badge number and PIN, in the Android app or the web app.</p>
-      </div>
-      <div class="card" id="billing">
-        <div style="display:flex;justify-content:space-between;align-items:center"><span class="eyebrow">Subscription</span><span class="pill" id="status"></span></div>
-        <div class="price" style="font-size:40px;margin:16px 0 0"><span id="price"></span> <small>/ month</small></div>
-        <dl class="kv" id="billkv"></dl>
-        <div class="btn-row" id="billbtns"></div>
-      </div>
-      <div class="card">
-        <span class="eyebrow">Usage</span>
-        <dl class="kv" style="grid-template-columns:1fr auto"><dt>Sites</dt><dd id="u-sites"></dd></dl><div class="meter"><i id="m-sites"></i></div>
-        <dl class="kv" style="grid-template-columns:1fr auto"><dt>Officer accounts</dt><dd id="u-off"></dd></dl><div class="meter"><i id="m-off"></i></div>
-        <p class="dim small" style="margin-top:14px">Add sites, tour locations and officers in the app under More → Administration.</p>
-      </div>
-      <div class="card">
-        <span class="eyebrow">Get the app</span>
-        <p class="muted small" style="margin-top:12px">Officers on Android install the 4 Horseman app. Anyone can also use the full app in a web browser.</p>
-        <div class="btn-row"><a class="btn btn-ghost btn-sm" id="openApp2" href="/app/">Open web app</a></div>
-      </div>
-    </div>
-  </div>
+  <div class="alert" id="msg" hidden></div>
+  <div id="due" hidden></div>
+  <div id="panel" hidden></div>
 </main>
-<footer><div class="wrap">
+<div class="modal-back" id="modal" hidden><div class="modal" role="dialog" aria-modal="true"><button class="modal-x" data-close aria-label="Close">×</button><div id="modalBody"></div></div></div>
+<div class="toast" id="toast" hidden></div>
+<footer><div class="wrap dash-wrap">
   <span>© <span data-year></span> 4 Horseman Security</span>
-  <nav><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/login">Log in</a></nav>
+  <nav><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/client">Client portal</a></nav>
 </div></footer>
 <script src="/assets/site.js"></script>
-<script>
-(async () => {
-  const msg = HM.$('#msg');
-  if (!HM.store.get()) return location.replace('/login');
-  HM.$('#logout').onclick = async () => { try { await HM.api('POST', '/api/logout'); } catch (e) { } HM.store.set(null); location.href = '/'; };
-  async function load() {
-    let a;
-    try { a = await HM.api('GET', '/api/account'); }
-    catch (e) { if (e.status === 401 || e.status === 403 || e.status === 410) { HM.store.set(null); return location.replace('/login' + (e.status === 410 ? '' : '')); } HM.alertBox(msg, e.message); return; }
-    HM.$('#loading').hidden = true; HM.$('#view').hidden = false;
-    HM.$('#cname').textContent = a.company.name; HM.$('#who').textContent = 'Signed in as ' + a.me.name + ' · administrator';
-    HM.$('#code').textContent = a.company.code;
-    ['#openApp', '#openApp2'].forEach(s => HM.$(s).href = '/app/?company=' + encodeURIComponent(a.company.code));
-    HM.$('#u-sites').textContent = a.usage.sites + ' of ' + a.usage.maxSites; HM.$('#m-sites').style.width = (a.usage.sites / a.usage.maxSites * 100) + '%';
-    HM.$('#u-off').textContent = a.usage.officers + ' of ' + a.usage.maxOfficers; HM.$('#m-off').style.width = (a.usage.officers / a.usage.maxOfficers * 100) + '%';
-    const b = a.billing, st = HM.$('#status'), kv = HM.$('#billkv'), btns = HM.$('#billbtns');
-    HM.$('#price').textContent = HM.money(a.price);
-    btns.innerHTML = ''; kv.innerHTML = '';
-    const row = (k, v) => kv.insertAdjacentHTML('beforeend', '<dt>' + HM.esc(k) + '</dt><dd>' + HM.esc(v) + '</dd>');
-    const btn = (label, cls, fn) => { const x = document.createElement('button'); x.className = 'btn btn-sm ' + cls; x.textContent = label; x.onclick = async () => { x.disabled = true; try { await fn(); } catch (e) { HM.alertBox(msg, e.message); x.disabled = false; } }; btns.appendChild(x); };
-    if (b.status === 'owner') { st.textContent = 'Owner'; st.className = 'pill'; HM.$('#price').parentElement.hidden = true; row('Billing', 'Not billed (owner company)'); return; }
-    const labels = { active: ['Active', 'ok'], trialing: ['Trial', 'ok'], past_due: ['Payment due', 'warn'], unpaid: ['Unpaid', 'bad'], canceled: ['Ended', 'bad'], incomplete: ['Incomplete', 'warn'] };
-    const [lt, lc] = labels[b.status] || [b.status, ''];
-    st.textContent = b.cancelAtPeriodEnd ? 'Cancelling' : lt; st.className = 'pill ' + (b.cancelAtPeriodEnd ? 'warn' : lc);
-    if (b.cancelAtPeriodEnd) row('Access ends', HM.date(b.periodEnd)); else row('Next payment', HM.date(b.periodEnd));
-    if (b.status === 'past_due') HM.alertBox(msg, 'Your last payment did not go through. Update your payment method to keep your company account. If payment cannot be collected, the account and its data are deleted.', 'err');
-    else if (b.cancelAtPeriodEnd) HM.alertBox(msg, 'Your subscription is set to end on ' + HM.date(b.periodEnd) + '. On that date your company account and all of its data are permanently deleted.', 'info');
-    else msg.hidden = true;
-    btn('Update payment method', 'btn-ghost', async () => { const r = await HM.api('POST', '/api/account/portal'); location.href = r.url; });
-    if (b.cancelAtPeriodEnd) btn('Keep my subscription', 'btn-gold', async () => { await HM.api('POST', '/api/account/resume'); await load(); HM.alertBox(msg, 'Your subscription will continue.', 'ok'); });
-    else btn('Cancel subscription', 'btn-danger', async () => {
-      if (!confirm('Cancel your subscription?\n\nYou keep access until ' + HM.date(b.periodEnd) + '. After that, your company account and ALL of its data (officers, sites, reports, messages) are permanently deleted.')) throw Object.assign(new Error(''), {});
-      await HM.api('POST', '/api/account/cancel'); await load();
-    });
-  }
-  load();
-})();
-</script>
+<script src="/assets/xl.js"></script>
+<script src="/assets/invoice.js"></script>
+<script src="/assets/dash.js"></script>
 </body>
 </html>

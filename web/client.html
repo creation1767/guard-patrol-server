@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Client portal · 4 Horseman Security</title>
+<meta name="theme-color" content="#06080e">
+<meta name="robots" content="noindex">
+<link rel="icon" href="/assets/favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Lora:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/styles.css">
+<link rel="stylesheet" href="/assets/dash.css">
+<script src="/assets/i18n.js"></script>
+</head>
+<body class="dash-body">
+<header class="top"><div class="wrap dash-wrap">
+  <a class="brand" href="/"><img src="/assets/logo-mark.svg" alt=""><span><b>4 HORSEMAN</b><small>SECURITY · LEVEL 2 &amp; 3</small></span></a>
+  <nav><span data-lang-slot></span><button class="btn btn-ghost btn-sm" id="logout" hidden>Log out</button></nav>
+</div></header>
+
+<main class="auth" id="login" hidden><form class="card panel" id="lf" novalidate>
+  <span class="eyebrow">Client portal</span>
+  <h1>Sign in</h1>
+  <p class="muted small">For the properties and businesses our officers protect. Your security company gives you these details.</p>
+  <div class="field"><label for="company">Security company code</label><input id="company" name="company" class="code-input" required maxlength="120" autocomplete="organization" spellcheck="false" autocapitalize="characters"></div>
+  <div class="field"><label for="email">Email</label><input id="email" name="email" type="email" required maxlength="200" autocomplete="username"></div>
+  <div class="field"><label for="pin">Portal PIN</label><input id="pin" name="pin" type="password" inputmode="numeric" required maxlength="8" autocomplete="current-password"></div>
+  <div class="alert err" id="err" hidden></div>
+  <div class="form-actions"><button class="btn btn-gold btn-big" id="go">Sign in</button></div>
+  <p class="muted small center" style="margin-top:18px">Security company administrator? <a href="/login">Log in here</a></p>
+</form></main>
+
+<div id="app" hidden>
+  <div class="tabs-bar"><div class="wrap dash-wrap"><nav class="tabs" id="tabs" aria-label="Client portal">
+    <a href="#reports" data-tab="reports">Reports</a>
+    <a href="#activity" data-tab="activity">Check-ins &amp; tours</a>
+    <a href="#invoices" data-tab="invoices">Invoices</a>
+    <a href="#requests" data-tab="requests">Requests</a>
+  </nav></div></div>
+  <main class="dash wrap dash-wrap"><div class="alert" id="msg" hidden></div><div id="panel"></div></main>
+</div>
+<div class="modal-back" id="modal" hidden><div class="modal" role="dialog" aria-modal="true"><button class="modal-x" data-close aria-label="Close">×</button><div id="modalBody"></div></div></div>
+<div class="toast" id="toast" hidden></div>
+<footer><div class="wrap dash-wrap">
+  <span>© <span data-year></span> 4 Horseman Security</span>
+  <nav><a href="/terms">Terms</a><a href="/privacy">Privacy</a></nav>
+</div></footer>
+<script src="/assets/site.js"></script>
+<script src="/assets/invoice.js"></script>
+<script src="/assets/client.js"></script>
+</body>
+</html>
