@@ -1440,7 +1440,7 @@ function AdminOfficers() {
       <div class="bar" style="margin-top:12px"><i style="width:${n / MAX_OFFICERS * 100}%"></i></div>
       <p class="dim small" style="margin-top:10px">Up to ${MAX_PER_SITE} officers per site. Only the administrator can add or remove officers.</p>
       ${db.sites.length ? `<div class="row" style="flex-wrap:wrap;gap:6px;margin-top:10px">${db.sites.map(s => `<span class="pill ${siteCount(s.id) >= MAX_PER_SITE ? 'warn' : ''}">${esc(s.name)} ${siteCount(s.id)}/${MAX_PER_SITE}</span>`).join('')}</div>` : ''}</div>
-    <button class="${full ? 'btn-ghost' : 'btn-primary'} btn-block" style="margin:14px 0" data-act="editUser" ${full ? 'disabled' : ''}>${ic('plus', 'sm')} ${full ? `Limit of ${MAX_OFFICERS} reached` : 'Add officer'}</button>
+    <p class="note" style="margin:14px 0">New officers are added on the website dashboard under Payroll. They appear here after the next sync. Tap an officer to edit or remove them.</p>
     <div class="list">${list.map(u => `<a class="item" href="#" data-act="editUser" data-id="${u.id}"><span class="medal ${activeShift(u) ? 'ok' : ''}">${ic(u.role === 'admin' ? 'lock' : 'user')}</span>
     <div class="grow"><b>${esc(u.name)}</b><p class="muted small">Badge ${esc(u.badge)} · ${roleName(u.role)}${u.role !== 'admin' ? ` · ${u.siteId && siteById(u.siteId) ? esc(siteById(u.siteId).name) : '<span style="color:var(--warn)">no site</span>'}` : ''}${activeShift(u) ? ' · <span style="color:var(--ok)">on duty</span>' : ''}</p></div><span class="chev">${ic('chev', 'sm')}</span></a>`).join('')}</div></div>`;
 }
