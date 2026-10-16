@@ -125,7 +125,7 @@
         <div class="btn-row" id="billbtns"></div>`;
     };
     panel.innerHTML = `
-      <div class="dash-head"><div><span class="eyebrow">${esc(T('Company dashboard'))}</span><h1 translate="no">${esc(A.company.name)}</h1>
+      <div class="dash-head"><div><span class="eyebrow" translate="no">4 HORSEMAN Security Server</span><h1 translate="no">${esc(A.company.name)}</h1>
         <p class="muted">${esc(T('Signed in as {name} · administrator', { name: A.me.name }))}</p></div></div>
       <div class="tiles">
         <a class="tile" href="#schedule"><span>${esc(T('On duty now'))}</span><b>${D.onDuty.length}</b></a>
@@ -149,7 +149,7 @@
           <dl class="kv"><dt>${esc(T('Sites'))}</dt><dd>${esc(T('{a} of {b}', { a: A.usage.sites, b: A.usage.maxSites }))}</dd></dl><div class="meter"><i style="width:${A.usage.sites / A.usage.maxSites * 100}%"></i></div>
           <dl class="kv"><dt>${esc(T('Officer accounts'))}</dt><dd>${esc(T('{a} of {b}', { a: A.usage.officers, b: A.usage.maxOfficers }))}</dd></dl><div class="meter"><i style="width:${A.usage.officers / A.usage.maxOfficers * 100}%"></i></div>
           <dl class="kv"><dt>${esc(T('Clients'))}</dt><dd>${D.clients.length}</dd></dl>
-          <p class="dim small" style="margin-top:14px">${esc(T('Add sites, tour locations and officers in the app under More → Administration.'))}</p>
+          <p class="dim small" style="margin-top:14px">${esc(T('Add officers here under Payroll. Add sites and tour locations in the app under More → Administration.'))}</p>
           <div class="btn-row"><a class="btn btn-ghost btn-sm" href="/app/?company=${encodeURIComponent(A.company.code)}">${esc(T('Open web app'))}</a></div></section>
       </div>`;
     if (b.status !== 'owner') billingButtons();
@@ -403,13 +403,14 @@
           <td class="n">${hrs(r.sched)}</td><td class="n">${hrs(r.reg)}</td><td class="n${r.ot ? ' warn-text' : ''}">${hrs(r.ot)}</td><td class="n"><b>${money(r.gross)}</b></td>
           <td class="n"><button type="button" class="btn-link" data-detail="${esc(r.id)}">${esc(T('Shifts'))} (${r.shifts.length})</button></td></tr>`).join('')}</tbody>
         <tfoot><tr><td>${esc(T('Total'))}</td><td></td><td class="n">${hrs(sum('sched'))}</td><td class="n">${hrs(sum('reg'))}</td><td class="n">${hrs(sum('ot'))}</td><td class="n">${money(sum('gross'))}</td><td></td></tr></tfoot>
-      </table></div><div class="btn-row"><button class="btn btn-gold btn-sm" id="rSave">${esc(T('Save pay rates'))}</button></div></form>`
-      : empty(T('No officers yet'), T('Add officers in the app under More → Administration.'))}`;
+      </table></div><div class="btn-row"><button class="btn btn-gold btn-sm" id="rSave">${esc(T('Save pay rates'))}</button><button type="button" class="btn btn-ghost btn-sm" data-add-officer>+ ${esc(T('Add officer'))}</button></div></form>`
+      : `${empty(T('No officers yet'), T('Add your first officer here. They appear in the mobile app as soon as it syncs.'))}<div class="btn-row"><button type="button" class="btn btn-gold btn-sm" data-add-officer>+ ${esc(T('Add officer'))}</button></div>`}`;
     const rf = $('#rf');
     if (rf) rf.onsubmit = guard($('#rSave'), async () => {
       const rates = {}; for (const el of $$('input[name^="rate_"]', rf)) rates[el.name.slice(5)] = Math.round((+el.value || 0) * 100);
       await act('paySettings', { rates }, T('Pay rates saved')); payroll();
     });
+    $$('[data-add-officer]', panel).forEach(b => b.onclick = () => officerForm());
     $$('[data-detail]', panel).forEach(b => b.onclick = () => {
       const r = rows.find(x => x.id === b.dataset.detail);
       modal(`<h2 translate="no">${esc(r.name)}</h2><p class="muted small">${fDate(from)} – ${fDate(to - 1)}</p>
@@ -419,6 +420,36 @@
     });
     $('#pXlsx').onclick = () => exportPayroll(rows, mult, from, to, 'xlsx');
     $('#pCsv').onclick = () => exportPayroll(rows, mult, from, to, 'csv');
+  }
+  // Add an officer from the Payroll tab. The server applies the same rules as the app (limits, badge, site, PIN),
+  // and the officer shows up in the mobile app on its next sync.
+  function officerForm() {
+    const L = D.limits, staff = D.users.filter(u => u.role !== 'admin');
+    if (staff.length >= L.officers) return HM.alertBox(msg, T('You have reached the limit of {a} officer accounts', { a: L.officers }));
+    const perSite = id => staff.filter(u => u.siteId === id).length;
+    modal(`<h2>${esc(T('Add officer'))}</h2>
+      <p class="muted small">${esc(T('{a} of {b} accounts used', { a: staff.length, b: L.officers }))} · ${esc(T('Up to {a} officers per site. Only the administrator can add or remove officers.', { a: L.officersPerSite }))}</p>
+      <form id="of" class="form">
+        <div class="row2"><div class="field"><label>${esc(T('Full name'))}</label><input name="name" required maxlength="120" autocomplete="off"></div>
+          <div class="field"><label>${esc(T('Badge number'))}</label><input name="badge" required maxlength="20" inputmode="numeric" autocomplete="off"></div></div>
+        <div class="row2"><div class="field"><label>${esc(T('Phone'))}</label><input name="phone" type="tel" maxlength="40"></div>
+          <div class="field"><label>${esc(T('Role'))}</label><select name="role">${opt('guard', T('Officer'), true)}${opt('supervisor', T('Supervisor'))}</select></div></div>
+        <div class="row2"><div class="field"><label>${esc(T('Assigned site'))}</label>${D.sites.length ? `<select name="siteId" required><option value="" disabled selected>${esc(T('Choose a site'))}</option>${D.sites.map(s => { const n = perSite(s.id), full = n >= L.officersPerSite; return `<option value="${esc(s.id)}"${full ? ' disabled' : ''}>${esc(s.name)} (${n}/${L.officersPerSite}${full ? ' · ' + esc(T('full')) : ''})</option>`; }).join('')}</select>` : `<p class="small warn-text">${esc(T('Add a site in the app (More → Administration) first.'))}</p>`}</div>
+          <div class="field"><label>${esc(T('Pay rate / hour'))}</label><span class="money-in big">$<input name="rate" type="number" min="0" step="0.01" value="0.00"></span></div></div>
+        <div class="field"><label>${esc(T('PIN (4–8 digits)'))}</label><input name="pin" required inputmode="numeric" pattern="\\d{4,8}" maxlength="8" autocomplete="off">
+          <p class="hint">${esc(T('The officer signs in to the app with your company code, their badge number and this PIN.'))}</p></div>
+        <div class="alert err" hidden></div>
+        <div class="btn-row"><button type="button" class="btn btn-ghost btn-sm" data-close>${esc(T('Cancel'))}</button><button class="btn btn-gold btn-sm" id="oSave"${D.sites.length ? '' : ' disabled'}>${esc(T('Add officer'))}</button></div>
+      </form>`, 'wide');
+    const f = $('#of');
+    f.onsubmit = guard($('#oSave'), async () => {
+      const pin = f.pin.value.trim();
+      if (!/^\d{4,8}$/.test(pin)) throw new Error(T('PIN must be 4–8 digits'));
+      if (!f.siteId || !f.siteId.value) throw new Error(T('Choose the site this officer is assigned to'));
+      await act('officerAdd', { name: f.name.value, badge: f.badge.value, phone: f.phone.value, role: f.role.value, siteId: f.siteId.value,
+        pin, rate: Math.round((+f.rate.value || 0) * 100) }, T('Officer added — it will appear in the mobile app on its next sync'));
+      closeModal(); payroll();
+    });
   }
   function exportPayroll(rows, mult, from, to, kind) {
     const name = `payroll_${ymd(from)}_to_${ymd(to - 1)}`;
