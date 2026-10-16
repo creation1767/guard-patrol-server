@@ -525,6 +525,16 @@ const D = {
     if (d.otMult !== undefined) p.otMult = Math.min(3, Math.max(1, +d.otMult || 1.5));
     if (d.rates && typeof d.rates === 'object') for (const [id, v] of Object.entries(d.rates)) if (C.users.some(x => x.id === id)) p.rates[id] = cents(v);
   },
+  // New officer from the Payroll tab. Same rules as adding one in the app (limits, unique badge, PIN, site);
+  // the phones pick the account up on their next sync, because /api/state sends the full officer list.
+  officerAdd(C, u, d) {
+    if (!str(d.name, 120).trim()) fail(400, 'Enter the officer\'s full name');
+    const id = newId('u');
+    H.user(C, u, { id, name: str(d.name, 120).trim(), badge: d.badge, phone: d.phone, role: d.role, siteId: d.siteId, pin: d.pin == null ? '' : String(d.pin) });
+    if (!userById(C, id)) fail(500, 'The officer could not be added');
+    if (d.rate !== undefined) C.pay.rates[id] = cents(d.rate);
+    return { id };
+  },
   profile(C, u, d) {
     const p = C.profile;
     for (const k of ['name', 'address', 'phone', 'email', 'payTo']) if (d[k] !== undefined) p[k] = str(d[k], k === 'payTo' || k === 'address' ? 600 : 160);
