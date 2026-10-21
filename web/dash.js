@@ -87,7 +87,7 @@
     msg.hidden = true;
     TABS[tab]();
   }
-  window.addEventListener('hashchange', () => go(location.hash.slice(1)));
+  window.addEventListener('hashchange', () => { closeModal(); go(location.hash.slice(1)); });
 
   // Overdue subscription: shown above every tab.
   function dueBanner() {
@@ -118,7 +118,7 @@
       if (b.status === 'owner') return `<dl class="kv"><dt>${esc(T('Billing'))}</dt><dd>${esc(T('Not billed (owner company)'))}</dd></dl>`;
       const labels = { active: ['Active', 'ok'], trialing: ['Trial', 'ok'], past_due: ['Payment overdue', 'bad'], unpaid: ['Payment overdue', 'bad'], canceled: ['Ended', 'bad'], incomplete: ['Incomplete', 'warn'] };
       const [lt, lc] = b.cancelAtPeriodEnd ? ['Cancelling', 'warn'] : labels[b.status] || [b.status, ''];
-      return `<div class="row-between"><div class="price small-price">${money(A.price)} <small>${esc(T('/ month'))}</small></div>${pill(T(lt), lc)}</div>
+      return `<div class="row-between"><div><div class="plan-name">${esc(T('{name} plan', { name: T(A.plan?.name || 'Company plan') }))}</div><div class="price small-price">${money(A.price)} <small>${esc(T('/ month'))}</small></div></div>${pill(T(lt), lc)}</div>
         <dl class="kv">${b.cancelAtPeriodEnd ? `<dt>${esc(T('Access ends'))}</dt><dd>${fDate(b.periodEnd)}</dd>` : `<dt>${esc(T('Next payment'))}</dt><dd>${fDate(b.periodEnd)}</dd>`}
         ${b.overdue ? `<dt>${esc(T('Deleted if unpaid on'))}</dt><dd class="bad-text">${fDate(b.deleteAt)}</dd>` : ''}</dl>
         <p class="dim small" style="margin-top:12px">${esc(T('Charged automatically every month. If a payment fails you have {n} days to pay before the account and its data are deleted.', { n: A.graceDays || 15 }))}</p>
@@ -158,11 +158,36 @@
     const b = A.billing, box = $('#billbtns');
     const btn = (label, cls, fn) => { const x = document.createElement('button'); x.className = 'btn btn-sm ' + cls; x.textContent = T(label); x.onclick = guard(x, fn); box.appendChild(x); };
     if (b.overdue && b.payUrl) btn('Pay now', 'btn-gold', async () => { location.href = b.payUrl; });
+    if (!b.overdue && !b.cancelAtPeriodEnd && A.plan?.plan !== 'enterprise') btn('Change plan', 'btn-gold', async () => planForm());
     btn('Update payment method', 'btn-ghost', async () => { const r = await api('POST', '/api/account/portal'); location.href = r.url; });
     if (b.cancelAtPeriodEnd) btn('Keep my subscription', 'btn-gold', async () => { await api('POST', '/api/account/resume'); A = await api('GET', '/api/account'); overview(); toast(T('Your subscription will continue.')); });
     else btn('Cancel subscription', 'btn-danger', async () => {
       if (!confirm(T('Cancel your subscription?') + '\n\n' + T('You keep access until {date}. After that, your company account and ALL of its data (officers, sites, reports, messages) are permanently deleted.', { date: fDate(b.periodEnd) }))) return;
       await api('POST', '/api/account/cancel'); A = await api('GET', '/api/account'); overview();
+    });
+  }
+
+  // Change between Starter, Pro and Business. Plans the company has outgrown are shown but can't be picked.
+  function planForm() {
+    const cur = A.plan?.plan, u = A.usage;
+    const fits = x => u.sites <= x.sites && u.officers <= x.officers;
+    modal(`<h2>${esc(T('Change plan'))}</h2>
+      <p class="muted small">${esc(T('You use {s} site(s) and {o} officer account(s). The price difference is prorated on your next invoice.', { s: u.sites, o: u.officers }))}</p>
+      <form id="pf" class="form"><div class="plan-pick">${A.plans.map(x => `<label class="plan-opt${fits(x) ? '' : ' off'}"><input type="radio" name="plan" value="${esc(x.id)}"${x.id === cur ? ' checked' : ''}${fits(x) ? '' : ' disabled'}>
+        <span class="grow"><b>${esc(T(x.name))}${x.id === cur ? ` · <span class="gold-text">${esc(T('Current plan'))}</span>` : ''}</b><span class="muted small">${esc(T(x.sites === 1 ? '1 site' : 'Up to {n} sites', { n: x.sites }))} · ${esc(T('up to {n} officers', { n: x.officers }))}</span>
+        ${fits(x) ? '' : `<span class="warn-text small" style="display:block">${esc(T('Too small for your current sites or officers'))}</span>`}</span>
+        <span class="pp">${money(x.price)} ${esc(T('/ month'))}</span></label>`).join('')}</div>
+        <p class="hint">${esc(T('Need more than 5 sites or 50 officers?'))} <a href="/enterprise" target="_blank">${esc(T('Ask about Enterprise'))}</a></p>
+        <div class="alert err" hidden></div>
+        <div class="btn-row"><button type="button" class="btn btn-ghost btn-sm" data-close>${esc(T('Cancel'))}</button><button class="btn btn-gold btn-sm" id="pSave">${esc(T('Change plan'))}</button></div></form>`);
+    if (cur === 'enterprise') { $('#pSave').disabled = true; HM.alertBox($('#modalBody .alert'), T('Your Enterprise plan is managed by 4 Horseman Security. Contact us to change it.')); }
+    const f = $('#pf');
+    f.onsubmit = guard($('#pSave'), async () => {
+      const v = f.plan.value; if (!v || v === cur) return closeModal();
+      const x = A.plans.find(p => p.id === v);
+      if (!confirm(T('Switch to the {name} plan at {price} a month?', { name: T(x.name), price: money(x.price) }))) return;
+      await api('POST', '/api/account/plan', { plan: v });
+      A = await api('GET', '/api/account'); closeModal(); overview(); toast(T('Your plan was changed to {name}.', { name: T(x.name) }));
     });
   }
 
@@ -717,11 +742,51 @@
           <h3 style="margin-top:30px">${esc(T('Company account'))}</h3>
           <dl class="kv"><dt>${esc(T('Company code'))}</dt><dd translate="no">${esc(A.company.code)}</dd><dt>${esc(T('Account email'))}</dt><dd translate="no">${esc(A.company.email || '—')}</dd><dt>${esc(T('Created'))}</dt><dd>${fDate(A.company.createdAt)}</dd></dl>
         </section>
+        ${D.inquiries ? enterpriseCard() : ''}
       </div>`;
     if (window.I18N) $('#langSlot').appendChild(I18N.picker('lang-select big'));
+    if (D.inquiries) enterpriseWire();
     const f = $('#bp');
     f.onsubmit = guard($('#bpSave'), async () => {
       await act('profile', { name: f.name.value, address: f.address.value, phone: f.phone.value, email: f.email.value, payTo: f.payTo.value, terms: +f.terms.value, taxPct: +f.taxPct.value }, T('Saved'));
+    });
+  }
+
+  // Owner company only: enterprise enquiries from the website, and the plan of every customer company.
+  const ST = { new: ['New', 'warn'], contacted: ['Contacted', ''], won: ['Won', 'ok'], closed: ['Closed', ''] };
+  function enterpriseCard() {
+    const q = D.inquiries, cs = D.companies || [];
+    return `<section class="card wide-card"><h3>${esc(T('Enterprise'))}</h3>
+      <p class="muted small" style="margin:8px 0 14px">${esc(T('Enquiries sent from the Enterprise page of the website. Agree a price with the customer, ask them to sign up on any plan, then set their company to Enterprise below.'))}</p>
+      ${q.length ? `<ul class="list">${q.map(x => `<li><div><b translate="no">${esc(x.company)}</b> <span class="muted small" translate="no">· ${esc(x.name)} · <a href="mailto:${esc(x.email)}">${esc(x.email)}</a>${x.phone ? ' · ' + esc(x.phone) : ''}</span>
+        <div class="dim small">${fDate(x.at)} · ${esc(T('{s} sites, {o} officers', { s: x.sites || '?', o: x.officers || '?' }))}</div>${x.message ? `<div class="small" translate="no" style="margin-top:4px">${esc(x.message)}</div>` : ''}</div>
+        <select class="inq" data-id="${esc(x.id)}" aria-label="${esc(T('Status'))}">${Object.entries(ST).map(([k, v]) => opt(k, T(v[0]), x.status === k)).join('')}</select></li>`).join('')}</ul>` : empty(T('No enquiries yet'))}
+      <h3 style="margin-top:26px">${esc(T('Customer plans'))}</h3>
+      ${cs.length ? `<div class="table-wrap"><table class="data"><thead><tr><th>${esc(T('Company'))}</th><th>${esc(T('Plan'))}</th><th class="n">${esc(T('Price'))}</th><th class="n">${esc(T('Sites'))}</th><th class="n">${esc(T('Officers'))}</th><th></th></tr></thead>
+        <tbody>${cs.map(c => `<tr><td><b translate="no">${esc(c.name)}</b><div class="dim small" translate="no">${esc(c.code)}</div></td><td>${esc(T(c.planName))}</td><td class="n">${money(c.price)}</td>
+          <td class="n">${c.usage.sites} / ${c.sites}</td><td class="n">${c.usage.officers} / ${c.officers}</td><td class="n"><button type="button" class="btn-link" data-setplan="${esc(c.code)}">${esc(T('Change'))}</button></td></tr>`).join('')}</tbody></table></div>`
+        : empty(T('No customer companies yet'))}
+    </section>`;
+  }
+  function enterpriseWire() {
+    $$('select.inq', panel).forEach(sel => sel.onchange = guard(null, async () => { await act('inquiryStatus', { id: sel.dataset.id, status: sel.value }, T('Saved')); }));
+    $$('[data-setplan]', panel).forEach(b => b.onclick = () => {
+      const c = D.companies.find(x => x.code === b.dataset.setplan);
+      modal(`<h2 translate="no">${esc(c.name)}</h2><p class="muted small">${esc(T('Uses {s} site(s) and {o} officer account(s).', { s: c.usage.sites, o: c.usage.officers }))}</p>
+        <form id="sp" class="form"><div class="field"><label>${esc(T('Plan'))}</label><select name="plan">${['starter', 'pro', 'business', 'enterprise'].map(k => opt(k, T(k[0].toUpperCase() + k.slice(1)), c.plan === k)).join('')}</select></div>
+          <div class="row2" id="entFields"><div class="field"><label>${esc(T('Sites'))}</label><input name="sites" type="number" min="1" value="${c.plan === 'enterprise' ? c.sites : 10}"></div>
+            <div class="field"><label>${esc(T('Officers'))}</label><input name="officers" type="number" min="1" value="${c.plan === 'enterprise' ? c.officers : 100}"></div></div>
+          <div class="field" id="entPrice"><label>${esc(T('Monthly price'))}</label><span class="money-in big">$<input name="price" type="number" min="1" step="0.01" value="${c.plan === 'enterprise' ? (c.price / 100).toFixed(2) : '599.00'}"></span>
+            <p class="hint">${esc(T('Their Stripe subscription moves to this price; the difference is prorated on their next invoice.'))}</p></div>
+          <div class="alert err" hidden></div>
+          <div class="btn-row"><button type="button" class="btn btn-ghost btn-sm" data-close>${esc(T('Cancel'))}</button><button class="btn btn-gold btn-sm" id="spSave">${esc(T('Save'))}</button></div></form>`);
+      const f = $('#sp');
+      const toggle = () => { const e = f.plan.value === 'enterprise'; $('#entFields').hidden = !e; $('#entPrice').hidden = !e; };
+      f.plan.onchange = toggle; toggle();
+      f.onsubmit = guard($('#spSave'), async () => {
+        await act('ownerSetPlan', { code: c.code, plan: f.plan.value, sites: +f.sites.value, officers: +f.officers.value, price: Math.round((+f.price.value || 0) * 100) }, T('Plan saved'));
+        closeModal(); settings();
+      });
     });
   }
 

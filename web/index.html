@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>4 Horseman Security · Guard management for Level 2 &amp; 3 teams</title>
-<meta name="description" content="Check-ins, post orders, QR guard tours, incident reports and team messaging for Level 2 &amp; 3 security officers. $149.99 a month per company.">
+<meta name="description" content="Check-ins, post orders, QR guard tours, incident reports and team messaging for Level 2 &amp; 3 security officers. Plans from $99 a month per company.">
 <meta name="theme-color" content="#06080e">
 <link rel="icon" href="/assets/favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -25,7 +25,7 @@
     <h1>Every post. Every round. <span class="gold-text">Every report.</span></h1>
     <p class="lead">One app for your whole security team. Officers check in on post with GPS, run QR guard tours and file reports from their phone, and every report lands straight in your inbox.</p>
     <div class="cta"><a class="btn btn-gold btn-big" href="/signup">Start your subscription</a><a class="btn btn-ghost btn-big" href="#how">See how it works</a></div>
-    <p class="note">$149.99 a month per company · Cancel anytime · Android app included</p>
+    <p class="note">Plans from <span data-plan-price="starter">$99</span> a month per company · Cancel anytime · Android app included</p>
   </div>
   <figure class="ad">
     <video id="ad" src="/assets/ad.mp4" poster="/assets/ad-poster.webp" width="540" height="960" muted loop playsinline preload="metadata"
@@ -58,7 +58,7 @@
   <h2 style="margin-top:14px">Up and running in an afternoon</h2>
   <div class="steps">
     <div class="card step"><h3>Subscribe</h3><p>Create your company account and pay securely with Stripe. You get a company code and become its administrator.</p></div>
-    <div class="card step"><h3>Set up your sites</h3><p>Add up to 2 sites with post orders and tour locations, print the QR labels, and add up to 25 officers per site.</p></div>
+    <div class="card step"><h3>Set up your sites</h3><p>Add your sites with post orders and tour locations, print the QR labels, and add your officers. Your plan sets how many.</p></div>
     <div class="card step"><h3>Your team signs in</h3><p>Officers install the Android app (or use it in a browser) and sign in with your company code, their badge number and PIN.</p></div>
   </div>
   <div class="shots" style="grid-template-columns:repeat(2,minmax(0,280px));justify-content:center">
@@ -67,27 +67,64 @@
   </div>
 </div></section>
 
-<section id="pricing"><div class="wrap pricing">
-  <div>
+<section id="pricing"><div class="wrap">
+  <div class="center" style="max-width:720px;margin:0 auto">
     <span class="eyebrow">Pricing</span>
-    <h2 style="margin-top:14px">One simple plan</h2>
-    <p class="lead" style="margin-top:16px">One subscription covers your whole company: every site, officer and report, plus scheduling, payroll, billing and a client portal. No per-officer fees and no contracts.</p>
+    <h2 style="margin-top:14px">Plans that grow with your company</h2>
+    <p class="lead" style="margin-top:16px">Every plan includes the Android and web apps, reports, guard tours, scheduling, payroll, client invoicing and a client portal. Billed monthly, no setup fees and no contracts.</p>
   </div>
-  <div class="card price-card">
-    <span class="eyebrow">Company plan</span>
-    <div class="price"><span data-price>$149.99</span> <small>/ month</small></div>
-    <p class="muted small">Billed monthly. Cancel anytime from your account.</p>
-    <ul class="checks">
-      <li><span>Up to <b>2 sites</b> with post orders</span></li>
-      <li><span>Up to <b>20 QR tour locations</b> per site</span></li>
-      <li><span>Up to <b>25 officers per site</b> (50 total)</span></li>
-      <li><span>Reports, messaging and operations board</span></li>
-      <li><span>Scheduling, payroll hours and client invoicing</span></li>
-      <li><span>Client portal for the properties you protect</span></li>
-      <li><span>Android app and web app included</span></li>
-    </ul>
-    <a class="btn btn-gold btn-big" style="width:100%" href="/signup">Get started</a>
+  <div class="plans">
+    <div class="card plan-card">
+      <span class="eyebrow">Starter</span>
+      <div class="price"><span data-plan-price="starter">$99</span> <small>/ month</small></div>
+      <p class="muted small">For a single post.</p>
+      <ul class="checks">
+        <li><span><b>1 site</b> with post orders</span></li>
+        <li><span>Up to <b>10 officers</b></span></li>
+        <li><span>Up to <b>20 QR tour locations</b></span></li>
+        <li><span>All features included</span></li>
+      </ul>
+      <a class="btn btn-ghost btn-big" href="/signup?plan=starter">Choose Starter</a>
+    </div>
+    <div class="card plan-card featured">
+      <span class="plan-flag">Most popular</span>
+      <span class="eyebrow">Pro</span>
+      <div class="price"><span data-plan-price="pro">$199</span> <small>/ month</small></div>
+      <p class="muted small">For a growing team.</p>
+      <ul class="checks">
+        <li><span>Up to <b>2 sites</b> with post orders</span></li>
+        <li><span>Up to <b>25 officers</b></span></li>
+        <li><span>Up to <b>20 QR tour locations</b> per site</span></li>
+        <li><span>All features included</span></li>
+      </ul>
+      <a class="btn btn-gold btn-big" href="/signup?plan=pro">Choose Pro</a>
+    </div>
+    <div class="card plan-card">
+      <span class="eyebrow">Business</span>
+      <div class="price"><span data-plan-price="business">$349</span> <small>/ month</small></div>
+      <p class="muted small">For multi-site companies.</p>
+      <ul class="checks">
+        <li><span>Up to <b>5 sites</b> with post orders</span></li>
+        <li><span>Up to <b>50 officers</b></span></li>
+        <li><span>Up to <b>20 QR tour locations</b> per site</span></li>
+        <li><span>All features included</span></li>
+      </ul>
+      <a class="btn btn-ghost btn-big" href="/signup?plan=business">Choose Business</a>
+    </div>
+    <div class="card plan-card">
+      <span class="eyebrow">Enterprise</span>
+      <div class="price price-word">Custom</div>
+      <p class="muted small">For large operations.</p>
+      <ul class="checks">
+        <li><span><b>More than 5 sites</b></span></li>
+        <li><span><b>More than 50 officers</b></span></li>
+        <li><span>Price based on your size</span></li>
+        <li><span>All features included</span></li>
+      </ul>
+      <a class="btn btn-ghost btn-big" href="/enterprise">Contact us</a>
+    </div>
   </div>
+  <p class="center dim small" style="margin-top:22px">Change plans anytime from your dashboard. Cancel anytime.</p>
 </div></section>
 
 <section style="padding-top:20px"><div class="wrap">
@@ -99,6 +136,7 @@
   <details><summary>What happens if we cancel?</summary><p>You keep full access until the end of the month you've paid for. When the subscription ends, your company account and all of its data are permanently deleted.</p></details>
   <details><summary>What if a monthly payment fails?</summary><p>Your subscription renews automatically every 30 days. If a payment fails, you have 15 days from the payment date to pay or update your card from your account page. If it is still unpaid after 15 days, the company account and all of its data are permanently deleted.</p></details>
   <details><summary>Can my clients see our work?</summary><p>Yes. Give each client a portal login and they can see the reports, check-ins and guard-tour scans for their own sites, view their invoices and send you service requests.</p></details>
+  <details><summary>Can we change plans later?</summary><p>Yes. Upgrade or downgrade anytime from the Overview tab of your dashboard. The price difference is worked out to the day on your next invoice. To downgrade, your sites and officers must fit the smaller plan.</p></details>
   <details><summary>Is there an iPhone app?</summary><p>Not yet. Officers on iPhone can use the full app in a browser by logging in on this website.</p></details>
 </div></section>
 </main>
@@ -121,7 +159,7 @@
       b.setAttribute('aria-pressed', String(!v.muted)); b.firstChild.textContent = v.muted ? 'Sound on' : 'Sound off';
     });
   })();
-  HM.api('GET', '/api/plan').then(p => { document.querySelectorAll('[data-price]').forEach(e => e.textContent = HM.money(p.price)); }).catch(() => {});
+  HM.api('GET', '/api/plan').then(p => { for (const x of p.plans || []) document.querySelectorAll(`[data-plan-price="${x.id}"]`).forEach(e => e.textContent = HM.money(x.price).replace(/\.00$/, '')); }).catch(() => {});
 </script>
 </body>
 </html>

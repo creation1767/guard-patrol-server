@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Enterprise · 4 Horseman Security</title>
+<meta name="theme-color" content="#06080e">
+<meta name="robots" content="noindex">
+<link rel="icon" href="/assets/favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Lora:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/styles.css">
+<script src="/assets/i18n.js"></script>
+</head>
+<body>
+<header class="top"><div class="wrap">
+  <a class="brand" href="/"><img src="/assets/logo-mark.svg" alt=""><span><b>4 HORSEMAN</b><small>SECURITY · LEVEL 2 &amp; 3</small></span></a>
+  <nav><a class="link hide-sm" href="/#features">Features</a><a class="link hide-sm" href="/#pricing">Pricing</a><a class="link" href="/login" data-login-link>Log in</a><a class="btn btn-gold btn-sm" href="/signup">Get started</a></nav>
+</div></header>
+<main class="auth"><div class="auth-grid">
+  <form class="card panel" id="f" novalidate>
+    <span class="eyebrow">Enterprise</span>
+    <h1>Talk to us about Enterprise</h1>
+    <p class="muted small">For companies with more than 5 sites or more than 50 officers. Tell us about your operation and we'll send you a price, usually within one business day.</p>
+    <div class="row2">
+      <div class="field"><label for="company">Company name</label><input id="company" name="company" required maxlength="160" autocomplete="organization"></div>
+      <div class="field"><label for="name">Your name</label><input id="name" name="name" required maxlength="120" autocomplete="name"></div>
+    </div>
+    <div class="row2">
+      <div class="field"><label for="email">Email</label><input id="email" name="email" type="email" required maxlength="200" autocomplete="email"></div>
+      <div class="field"><label for="phone">Phone (optional)</label><input id="phone" name="phone" type="tel" maxlength="40" autocomplete="tel"></div>
+    </div>
+    <div class="row2">
+      <div class="field"><label for="sites">Number of sites</label><input id="sites" name="sites" type="number" min="1" max="10000" inputmode="numeric"></div>
+      <div class="field"><label for="officers">Number of officers</label><input id="officers" name="officers" type="number" min="1" max="100000" inputmode="numeric"></div>
+    </div>
+    <div class="field"><label for="message">Anything else? (optional)</label><textarea id="message" name="message" rows="4" maxlength="2000"></textarea></div>
+    <div class="alert err" id="err" hidden></div>
+    <div class="alert ok" id="done" hidden>Thank you. We received your request and will contact you shortly.</div>
+    <div class="form-actions"><button class="btn btn-gold btn-big" id="go">Send request</button></div>
+  </form>
+  <aside class="card hl summary panel">
+    <span class="eyebrow">Enterprise plan</span>
+    <h3 style="margin:12px 0 10px">Built for your size</h3>
+    <div class="line"><span class="muted">Sites</span><span>More than 5</span></div>
+    <div class="line"><span class="muted">Officers</span><span>More than 50</span></div>
+    <div class="line"><span class="muted">Tour locations</span><span>20 per site</span></div>
+    <div class="line"><span class="muted">Apps</span><span>Android + web</span></div>
+    <div class="line"><span class="muted">Office tools</span><span>Scheduling, payroll, billing, client portal</span></div>
+    <div class="line total"><span>Price</span><span>Custom</span></div>
+    <p class="dim small" style="margin-top:14px">Smaller team? <a href="/signup">Start on Starter, Pro or Business</a> today.</p>
+  </aside>
+</div></main>
+<footer><div class="wrap">
+  <span>© <span data-year></span> 4 Horseman Security</span>
+  <nav><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/login">Log in</a></nav>
+</div></footer>
+<script src="/assets/site.js"></script>
+<script>
+(() => {
+  const f = HM.$('#f'), err = HM.$('#err'), go = HM.$('#go');
+  f.addEventListener('submit', async e => {
+    e.preventDefault(); HM.alertBox(err, '');
+    const v = Object.fromEntries(new FormData(f));
+    if (v.company.trim().length < 2) return HM.alertBox(err, 'Enter your company name.');
+    if (v.name.trim().length < 2) return HM.alertBox(err, 'Enter your name.');
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.email.trim())) return HM.alertBox(err, 'Enter a valid email address.');
+    go.disabled = true;
+    try { await HM.api('POST', '/api/enterprise', v); f.querySelectorAll('input,textarea').forEach(i => i.disabled = true); go.hidden = true; HM.$('#done').hidden = false; }
+    catch (x) { HM.alertBox(err, x.message); go.disabled = false; }
+  });
+})();
+</script>
+</body>
+</html>

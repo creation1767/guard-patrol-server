@@ -180,3 +180,27 @@ footer .foot-lang { display: none; }
 footer nav { flex-wrap: wrap; align-items: center; }
 /* Right-to-left (Arabic): keep Latin names such as "4 Horseman Security" in their own reading order. */
 [dir="rtl"] [translate="no"], [dir="rtl"] .brand b, [dir="rtl"] footer .wrap > span, [dir="rtl"] h1 { unicode-bidi: plaintext; }
+
+/* plans */
+.plans { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px; margin-top: 40px; align-items: stretch; }
+@media (max-width: 1100px) { .plans { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 620px) { .plans { grid-template-columns: 1fr; } }
+.plan-card { padding: 28px 24px; display: flex; flex-direction: column; position: relative; }
+.plan-card .price { font-size: 46px; }
+.plan-card .price-word { font-size: 40px; }
+.plan-card .checks { margin: 18px 0 22px; flex: 1; }
+.plan-card .btn { width: 100%; }
+.plan-card.featured { border-color: rgba(214, 178, 106, .55); box-shadow: 0 0 0 1px rgba(214, 178, 106, .25), 0 18px 50px rgba(0, 0, 0, .35); }
+.plan-flag { position: absolute; top: 14px; inset-inline-end: 14px; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; padding: 4px 9px; border-radius: 999px; background: rgba(214, 178, 106, .16); color: var(--gold, #d6b26a); }
+.plan-pick { display: grid; gap: 10px; margin: 6px 0 4px; }
+.plan-opt { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border: 1px solid var(--line2); border-radius: 14px; cursor: pointer; }
+.plan-opt:has(input:checked) { border-color: rgba(214, 178, 106, .7); background: rgba(214, 178, 106, .07); }
+.plan-opt input { width: auto; accent-color: #d6b26a; }
+.plan-opt .grow { flex: 1; }
+.plan-opt b { display: block; }
+.plan-opt .pp { font-weight: 600; white-space: nowrap; }
+.field .plan-opt { display: flex; font: 400 15px/1.35 var(--sans); letter-spacing: 0; text-transform: none; color: var(--text); margin: 0; }
+.field .plan-opt input, .plan-opt input { width: 18px; height: 18px; padding: 0; flex: none; box-shadow: none; }
+.plan-opt .grow > .small { display: block; margin-top: 3px; }
+.field textarea, .field select { width: 100%; background: #0a0d16; border: 1px solid var(--line2); border-radius: 14px; color: var(--text); font: 16px var(--sans); padding: 14px 16px; outline: none; resize: vertical; }
+.field textarea:focus, .field select:focus { border-color: var(--gold); box-shadow: 0 0 0 4px rgba(214, 182, 126, .12); }

@@ -24,6 +24,13 @@
     <p class="muted small">You'll be the administrator of your company's account.</p>
     <div class="alert info" id="closed" hidden>Online sign-up opens soon. Please check back shortly.</div>
     <div class="alert info" id="canceled" hidden>Payment was cancelled, so nothing was charged. You can try again below.</div>
+    <div class="field"><label>Plan</label>
+      <div class="plan-pick" id="plans">
+        <label class="plan-opt"><input type="radio" name="plan" value="starter"><span class="grow"><b>Starter</b><span class="muted small">1 site · up to 10 officers</span></span><span class="pp"><span data-plan-price="starter">$99</span> / mo</span></label>
+        <label class="plan-opt"><input type="radio" name="plan" value="pro" checked><span class="grow"><b>Pro</b><span class="muted small">2 sites · up to 25 officers</span></span><span class="pp"><span data-plan-price="pro">$199</span> / mo</span></label>
+        <label class="plan-opt"><input type="radio" name="plan" value="business"><span class="grow"><b>Business</b><span class="muted small">5 sites · up to 50 officers</span></span><span class="pp"><span data-plan-price="business">$349</span> / mo</span></label>
+      </div>
+      <p class="hint">Need more than 5 sites or 50 officers? <a href="/enterprise">Ask about Enterprise</a>. You can change plans later from your dashboard.</p></div>
     <div class="field"><label for="companyName">Company name</label><input id="companyName" name="companyName" required aria-required="true" maxlength="120" autocomplete="organization"><p class="hint">This is also your company code. You and your officers type it to sign in: <b class="gold" id="codePreview">—</b></p></div>
     <div class="field"><label for="adminName">Your name</label><input id="adminName" name="adminName" required maxlength="120" autocomplete="name"></div>
     <div class="field"><label for="email">Email</label><input id="email" name="email" type="email" required maxlength="200" autocomplete="email"><p class="hint">For receipts and billing from Stripe.</p></div>
@@ -39,13 +46,13 @@
   </form>
   <aside class="card hl summary panel">
     <span class="eyebrow">Order summary</span>
-    <h3 style="margin:12px 0 10px">Company plan</h3>
-    <div class="line"><span class="muted">Sites</span><span>Up to 2</span></div>
-    <div class="line"><span class="muted">Officers</span><span>25 per site · 50 total</span></div>
+    <h3 style="margin:12px 0 10px" id="sumName">Pro plan</h3>
+    <div class="line"><span class="muted">Sites</span><span id="sumSites">Up to 2</span></div>
+    <div class="line"><span class="muted">Officers</span><span id="sumOfficers">Up to 25</span></div>
     <div class="line"><span class="muted">Tour locations</span><span>20 per site</span></div>
     <div class="line"><span class="muted">Apps</span><span>Android + web</span></div>
     <div class="line"><span class="muted">Office tools</span><span>Scheduling, payroll, billing, client portal</span></div>
-    <div class="line total"><span>Due today</span><span><span data-price>$149.99</span> / month</span></div>
+    <div class="line total"><span>Due today</span><span><span id="sumPrice">$199.00</span> / month</span></div>
     <p class="dim small" style="margin-top:14px">Charged automatically every month. Cancel anytime from your account page.</p>
   </aside>
 </div></main>
@@ -58,7 +65,24 @@
 (() => {
   const f = HM.$('#f'), err = HM.$('#err'), go = HM.$('#go');
   if (new URLSearchParams(location.search).get('canceled')) HM.$('#canceled').hidden = false;
-  HM.api('GET', '/api/plan').then(p => { document.querySelectorAll('[data-price]').forEach(e => e.textContent = HM.money(p.price)); if (!p.signupOpen) { HM.$('#closed').hidden = false; go.disabled = true; } }).catch(() => {});
+  // Plans: Starter / Pro / Business. ?plan= from the pricing page picks one; the summary follows the choice.
+  let PL = { starter: { name: 'Starter', price: 9900, sites: 1, officers: 10 }, pro: { name: 'Pro', price: 19900, sites: 2, officers: 25 }, business: { name: 'Business', price: 34900, sites: 5, officers: 50 } };
+  const want = new URLSearchParams(location.search).get('plan');
+  if (PL[want]) f.querySelector(`input[name=plan][value="${want}"]`).checked = true;
+  const summary = () => {
+    const x = PL[f.plan.value] || PL.pro;
+    HM.$('#sumName').textContent = HM.t('{name} plan', { name: HM.t(x.name) });
+    HM.$('#sumSites').textContent = HM.t(x.sites === 1 ? '1 site' : 'Up to {n} sites', { n: x.sites });
+    HM.$('#sumOfficers').textContent = HM.t('Up to {n}', { n: x.officers });
+    HM.$('#sumPrice').textContent = HM.money(x.price);
+  };
+  f.addEventListener('change', e => { if (e.target.name === 'plan') summary(); });
+  summary();
+  HM.api('GET', '/api/plan').then(p => {
+    for (const x of p.plans || []) { PL[x.id] = x; document.querySelectorAll(`[data-plan-price="${x.id}"]`).forEach(e => e.textContent = HM.money(x.price).replace(/\.00$/, '')); }
+    summary();
+    if (!p.signupOpen) { HM.$('#closed').hidden = false; go.disabled = true; }
+  }).catch(() => {});
   const cn = HM.$('#companyName'), cp = HM.$('#codePreview');
   const toCode = n => n.toUpperCase().replace(/[^A-Z0-9]/g, '');
   cn.addEventListener('input', () => { cp.textContent = toCode(cn.value) || '—'; });
@@ -73,7 +97,7 @@
     if (v.pin !== v.pin2) return HM.alertBox(err, 'The two PINs do not match.');
     if (!HM.$('#agree').checked) return HM.alertBox(err, 'Please accept the Terms and Privacy Policy.');
     go.disabled = true; go.textContent = 'Opening secure checkout…';
-    try { const r = await HM.api('POST', '/api/signup', { companyName: v.companyName.trim(), adminName: v.adminName.trim(), email: v.email.trim(), pin: v.pin, lang: (window.I18N && I18N.lang) || 'en' }); location.href = r.url; }
+    try { const r = await HM.api('POST', '/api/signup', { plan: v.plan, companyName: v.companyName.trim(), adminName: v.adminName.trim(), email: v.email.trim(), pin: v.pin, lang: (window.I18N && I18N.lang) || 'en' }); location.href = r.url; }
     catch (x) { HM.alertBox(err, x.message); go.disabled = false; go.textContent = 'Continue to secure payment'; }
   });
 })();
