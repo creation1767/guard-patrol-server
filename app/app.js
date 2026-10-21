@@ -4,10 +4,15 @@
    Roles: admin (manages officers & locations), supervisor (operations board, all reports), guard (officer). */
 
 // ---------- limits ----------
-const MAX_SITES = 2;              // client sites
-const MAX_PER_SITE = 25;          // officer accounts assigned to each site
-const MAX_OFFICERS = MAX_SITES * MAX_PER_SITE; // 50 accounts in total (excludes the admin account)
-const MAX_CHECKPOINTS = 20;       // guard-tour locations per site
+// Defaults for the stand-alone demo. With a company server, the company's plan sets them (see applyLimits).
+let MAX_SITES = 2;                // client sites
+let MAX_PER_SITE = 25;            // officer accounts assigned to each site
+let MAX_OFFICERS = 50;            // accounts in total (excludes the admin account)
+let MAX_CHECKPOINTS = 20;         // guard-tour locations per site
+function applyLimits(L) {
+  if (!L || !(L.sites > 0)) return;
+  MAX_SITES = L.sites; MAX_OFFICERS = L.officers; MAX_PER_SITE = L.perSite || L.officers; MAX_CHECKPOINTS = L.checkpoints || 20;
+}
 const PING_EVERY_MS = 5 * 60000;  // on-shift location ping interval
 const PING_MOVE_M = 75;           // or when the officer moves this far
 
@@ -92,6 +97,7 @@ function useServer(d, url) {
   return d;
 }
 let db = load();
+applyLimits(db.limits);
 
 function seed() {
   const s1 = 'site1', s2 = 'site2';
@@ -1189,12 +1195,12 @@ function More() {
     ${isAdmin() ? `<div class="section-title"><h3>Administration</h3><span class="pill gold">${ic('lock', 'sm')} Admin</span></div><div class="list">
       ${row('#/reports', 'doc', 'Report inbox', `${adminNew().length} new · ${db.reports.length} total`)}
       ${row('#/admin/officers', 'users', 'Security officers', `${officerCount()} of ${MAX_OFFICERS} accounts used`)}
-      ${row('#/admin', 'building', 'Sites & guard-tour locations', `${db.sites.length} of ${MAX_SITES} sites · up to ${MAX_CHECKPOINTS} tour locations and ${MAX_PER_SITE} officers each`)}</div>` : ''}
+      ${row('#/admin', 'building', 'Sites & guard-tour locations', MAX_PER_SITE >= MAX_OFFICERS ? `${db.sites.length} of ${MAX_SITES} sites · up to ${MAX_CHECKPOINTS} tour locations each` : `${db.sites.length} of ${MAX_SITES} sites · up to ${MAX_CHECKPOINTS} tour locations and ${MAX_PER_SITE} officers each`)}</div>` : ''}
     <div class="list" style="margin-top:12px">
       ${isSup() ? row('#', 'download', 'Export data', 'JSON backup of this device', 'exportData') : ''}
       ${row('#', 'logout', 'Sign out', '', 'logout')}
     </div>
-    <p class="note">4 Horseman Security Level 2 &amp; 3 · version 1.5</p></div>`;
+    <p class="note">4 Horseman Security Level 2 &amp; 3 · version 1.6</p></div>`;
 }
 H.profile = () => {
   const u = me();
@@ -1438,7 +1444,7 @@ function AdminOfficers() {
   return `${bar('Security officers', '#/more')}<div class="page">
     <div class="card hl"><div class="row between"><span class="label">Accounts</span><span class="pill ${full ? 'warn' : 'gold'}">${n} / ${MAX_OFFICERS}</span></div>
       <div class="bar" style="margin-top:12px"><i style="width:${n / MAX_OFFICERS * 100}%"></i></div>
-      <p class="dim small" style="margin-top:10px">Up to ${MAX_PER_SITE} officers per site. Only the administrator can add or remove officers.</p>
+      <p class="dim small" style="margin-top:10px">${MAX_PER_SITE >= MAX_OFFICERS ? 'Officers can be spread across your sites in any way. Only the administrator can add or remove officers.' : `Up to ${MAX_PER_SITE} officers per site. Only the administrator can add or remove officers.`}</p>
       ${db.sites.length ? `<div class="row" style="flex-wrap:wrap;gap:6px;margin-top:10px">${db.sites.map(s => `<span class="pill ${siteCount(s.id) >= MAX_PER_SITE ? 'warn' : ''}">${esc(s.name)} ${siteCount(s.id)}/${MAX_PER_SITE}</span>`).join('')}</div>` : ''}</div>
     <p class="note" style="margin:14px 0">New officers are added on the website dashboard under Payroll. They appear here after the next sync. Tap an officer to edit or remove them.</p>
     <div class="list">${list.map(u => `<a class="item" href="#" data-act="editUser" data-id="${u.id}"><span class="medal ${activeShift(u) ? 'ok' : ''}">${ic(u.role === 'admin' ? 'lock' : 'user')}</span>
@@ -1540,6 +1546,7 @@ async function sync() {
       if (cur) Object.assign(cur, x); else db.shifts.push(x);
     }
     if (st.acks) db.acks[me().id] = { ...(db.acks[me().id] || {}), ...st.acks };
+    if (st.limits && JSON.stringify(st.limits) !== JSON.stringify(db.limits)) { db.limits = st.limits; applyLimits(st.limits); schedChanged = true; }
     if (Array.isArray(st.schedule)) { if (JSON.stringify(st.schedule) !== JSON.stringify(db.schedule || [])) schedChanged = true; db.schedule = st.schedule; }
     c.lastPull = st.now; c.lastSync = now(); c.syncError = ''; save();
     const changed = schedChanged || before !== JSON.stringify([db.users.length, db.sites, db.messages.length, db.reports.length]);
