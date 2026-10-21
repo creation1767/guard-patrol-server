@@ -2,7 +2,7 @@
 
 One small Node.js program (no dependencies, Node 18+) that runs:
 
-- **The website**: home page, sign-up with a $149.99/month recurring Stripe subscription, log in, an administrator dashboard (account & billing, scheduling, payroll, client invoicing, client portal accounts) and a client portal at /client.
+- **The website**: home page, sign-up with a monthly Stripe subscription (Starter, Pro or Business; Enterprise on request), log in, an administrator dashboard (account & billing, scheduling, payroll, client invoicing, client portal accounts) and a client portal at /client.
 - **The web app** at `/app/`: the same app as on Android, in a browser.
 - **The API** the Android app and web app use to sync accounts, sites, shifts, guard tours, reports and messages.
 
@@ -11,7 +11,7 @@ One small Node.js program (no dependencies, Node 18+) that runs:
 - Each subscriber gets a **separate company** with its own administrator, sites, officers, reports and messages. Companies can't see each other's data.
 - Everyone signs in with a **company code**, their **badge number** and **PIN**. A new company's administrator is badge **1000**, with the PIN chosen at sign-up.
 - Your own company (code `HORSEMAN`) is the **owner company**. It is never billed and never deleted. Its administrator PIN can always be reset with the `ADMIN_PIN` variable.
-- Limits per company: 2 sites, 20 guard-tour locations per site, 25 officers per site (50 in total).
+- Limits per company depend on the plan (see *Plans* below); every plan allows 20 guard-tour locations per site.
 
 ## Subscriptions (Stripe)
 
@@ -20,7 +20,7 @@ One small Node.js program (no dependencies, Node 18+) that runs:
 3. On the account page, administrators can update their card (Stripe billing portal), cancel (access continues to the end of the paid month), or undo a cancellation.
 4. Every 15 minutes the server checks each subscription with Stripe. When a subscription has **ended** (cancelled, or Stripe stopped retrying a failed payment), that company and all of its data are **deleted**.
 
-The server creates the Stripe product and the $149.99/month price itself on first use. The only setup is one variable.
+The server creates the Stripe products and monthly prices for each plan itself on first use. The only setup is one variable.
 
 ### Turn on payments
 
@@ -55,10 +55,24 @@ Dockerfile     how Railway builds it
 
 When the Android app's `www` files change, copy them into `app/` so the web app matches.
 
+## Plans (version 2.2)
+
+| Plan | Price / month | Sites | Officers |
+|---|---|---|---|
+| Starter | $99 (`PRICE_STARTER`, cents) | 1 | 10 |
+| Pro | $199 (`PRICE_PRO`) | 2 | 25 |
+| Business | $349 (`PRICE_BUSINESS`) | 5 | 50 |
+| Enterprise | set per company | set per company | set per company |
+
+- Buyers pick a plan at sign-up. Administrators can switch between Starter, Pro and Business on the dashboard's Overview tab;
+  Stripe prorates the difference on the next invoice. A downgrade is refused until the company's sites and officers fit.
+- **Enterprise:** the website's `/enterprise` form sends an enquiry. The owner company (`HORSEMAN`) sees enquiries on its
+  dashboard (Settings → Enterprise) and can set any company to Enterprise with its own sites, officers and monthly price
+  (the customer first signs up on any plan; their Stripe subscription is then moved to the agreed price).
+- Companies that subscribed before plans existed keep their old plan ($149.99, 2 sites, 50 officers) until they change plan.
+
 ## Version 2.1 additions
 
-- **Price:** $149.99 a month, charged automatically through Stripe (`PRICE_CENTS`, default 14999). A new Stripe price is created
-  automatically on first use; existing subscribers stay on the price they signed up with.
 - **Missed payments:** a company whose monthly payment fails keeps everything for `GRACE_DAYS` (default 15) days after the
   scheduled payment date; the dashboard shows a warning with a Pay now button. After that it is deleted. In the Stripe Dashboard
   (Billing → Revenue recovery → Retries) set retries to run for at least 15 days and choose *mark the subscription as unpaid* or

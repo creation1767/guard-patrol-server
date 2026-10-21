@@ -22,29 +22,38 @@
  *   ADMIN_BADGE       owner-company administrator badge on first start (default 1000)
  *   OWNER_COMPANY_NAME / OWNER_COMPANY_CODE   owner company name / sign-in code (default "4 Horseman Security" / HORSEMAN)
  *   STRIPE_SECRET_KEY Stripe secret key (sk_test_… or sk_live_…). Without it the website shows sign-up as unavailable.
- *   PRICE_CENTS       monthly price in cents (default 14999 = $149.99)
+ *   PRICE_STARTER / PRICE_PRO / PRICE_BUSINESS   monthly plan prices in cents (defaults 9900 / 19900 / 34900)
  *   GRACE_DAYS        days after a missed payment before the company is deleted (default 15)
  *   PUBLIC_URL        public address of this server (default: worked out from each request)
  *   SEED_DEMO_SITES   "false" to start the owner company with no sites
  *   ALLOWED_ORIGINS   extra CORS origins for the API (the Android app's origin is always allowed)
- *   MAX_SITES 2 · MAX_PER_SITE 25 · MAX_OFFICERS 50 · MAX_CHECKPOINTS 20 · SESSION_DAYS 30   (limits per company)
+ *   MAX_CHECKPOINTS 20 · SESSION_DAYS 30
+ *   Plans (sites / officers): Starter 1 / 10 · Pro 2 / 25 · Business 5 / 50 · Enterprise: limits and price set per company
+ *   by the owner company's administrator on the website dashboard.
  */
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
-const VERSION = '2.1.0';
+const VERSION = '2.2.0';
 const PORT = +process.env.PORT || 8080;
 const DATA_DIR = path.resolve(process.env.DATA_DIR || process.env.RAILWAY_VOLUME_MOUNT_PATH || path.join(__dirname, 'data'));
 const REPORT_DIR = path.join(DATA_DIR, 'reports');
 const STATE_FILE = path.join(DATA_DIR, 'state.json');
 const WEB_DIR = path.join(__dirname, 'web');
 const APP_DIR = path.join(__dirname, 'app');
-const MAX_SITES = +process.env.MAX_SITES || 2;
-const MAX_PER_SITE = +process.env.MAX_PER_SITE || 25;
-const MAX_OFFICERS = +process.env.MAX_OFFICERS || MAX_SITES * MAX_PER_SITE;
 const MAX_CHECKPOINTS = +process.env.MAX_CHECKPOINTS || 20;
+// Subscription plans. Officers may be spread across the plan's sites in any way, up to the plan's total.
+const PLANS = {
+  starter: { id: 'starter', name: 'Starter', price: +process.env.PRICE_STARTER || 9900, sites: 1, officers: 10 },
+  pro: { id: 'pro', name: 'Pro', price: +process.env.PRICE_PRO || 19900, sites: 2, officers: 25 },
+  business: { id: 'business', name: 'Business', price: +process.env.PRICE_BUSINESS || 34900, sites: 5, officers: 50 }
+};
+const PLAN_ORDER = ['starter', 'pro', 'business'];
+// Companies that subscribed before plans existed keep what they signed up for.
+const LEGACY = { id: 'legacy', name: 'Company plan', price: 14999, sites: 2, officers: 50, perSite: 25 };
+const OWNER_LIMITS = { sites: 25, officers: 500 };
 const SESSION_MS = (+process.env.SESSION_DAYS || 30) * 86400000;
 const BODY_LIMIT = 25 * 1024 * 1024;
 const OWNER_ID = 'c_owner';
@@ -52,9 +61,7 @@ const OWNER_NAME = process.env.OWNER_COMPANY_NAME || '4 Horseman Security';
 const OWNER_CODE = (process.env.OWNER_COMPANY_CODE || 'HORSEMAN').toUpperCase();
 const STRIPE_KEY = process.env.STRIPE_SECRET_KEY || '';
 const STRIPE_API = process.env.STRIPE_API_BASE || 'https://api.stripe.com';
-const PRICE_CENTS = +process.env.PRICE_CENTS || 14999;
 const GRACE_MS = (+process.env.GRACE_DAYS || 15) * 86400000;
-const PRICE_LOOKUP = `horseman_company_monthly_${PRICE_CENTS}`;
 const BILLING_SYNC_MS = (+process.env.BILLING_SYNC_MINUTES || 15) * 60000;
 // Stripe Checkout languages for the website's languages (Haitian Creole and Arabic are not offered by Stripe: French / auto).
 const STRIPE_LOCALES = { en: 'en', es: 'es', fr: 'fr', ht: 'fr', pt: 'pt-BR', ar: 'auto', ru: 'ru', de: 'de', fil: 'fil' };
@@ -84,6 +91,23 @@ function checkPin(pin, stored) {
 }
 const publicUser = u => ({ id: u.id, name: u.name, badge: u.badge, role: u.role, phone: u.phone || '', siteId: u.siteId || '' });
 const publicCompany = C => ({ id: C.id, code: C.code, name: C.name, owner: !!C.owner });
+// The plan and limits that apply to a company right now.
+function limitsOf(C) {
+  let p;
+  if (C.owner) p = { id: 'owner', name: 'Owner', price: 0, ...OWNER_LIMITS };
+  else if (C.plan === 'enterprise' && C.custom) p = { id: 'enterprise', name: 'Enterprise', price: C.custom.price, sites: C.custom.sites, officers: C.custom.officers };
+  else p = PLANS[C.plan] || LEGACY;
+  return { plan: p.id, name: p.name, price: p.price, sites: p.sites, officers: p.officers, perSite: p.perSite || p.officers, checkpoints: MAX_CHECKPOINTS };
+}
+const publicPlans = () => PLAN_ORDER.map(k => ({ ...PLANS[k], checkpoints: MAX_CHECKPOINTS }));
+// Why a company does not fit a plan's limits (empty when it fits).
+function overLimits(C, L) {
+  const staff = C.users.filter(x => x.role !== 'admin');
+  const out = [];
+  if (C.sites.length > L.sites) out.push(`You have ${C.sites.length} sites; this plan allows ${L.sites}. Remove sites in the app first.`);
+  if (staff.length > L.officers) out.push(`You have ${staff.length} officers; this plan allows ${L.officers}. Remove officers first.`);
+  return out;
+}
 const CODE_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 // Company codes are the company name in capitals with spaces and punctuation removed ("Acme Security, LLC" -> ACMESECURITYLLC),
 // so typing the name any way at sign-in finds the company.
@@ -147,6 +171,7 @@ catch (e) {
   S = seedState(); writeAtomic(STATE_FILE, JSON.stringify(S));
 }
 S.pending = S.pending || {};
+S.inquiries = S.inquiries || [];
 for (const C of Object.values(S.companies)) { const e = emptyOffice(); for (const k of Object.keys(e)) if (C[k] === undefined) C[k] = e[k]; }
 const owner = () => S.companies[OWNER_ID];
 if (owner() && owner().code !== OWNER_CODE && !Object.values(S.companies).some(c => c.code === OWNER_CODE)) owner().code = OWNER_CODE;
@@ -345,13 +370,15 @@ const H = {
     const siteId = staff ? str(d.siteId, 80) : undefined;
     if (staff) {
       if (!C.sites.some(s => s.id === siteId)) fail(400, 'Choose the site this officer is assigned to');
-      if ((!t || siteId !== t.siteId) && C.users.filter(x => x.role !== 'admin' && x.siteId === siteId).length >= MAX_PER_SITE)
-        fail(409, `Each site can have up to ${MAX_PER_SITE} officers`);
+      const L = limitsOf(C);
+      if ((!t || siteId !== t.siteId) && C.users.filter(x => x.role !== 'admin' && x.siteId === siteId).length >= L.perSite)
+        fail(409, `Each site can have up to ${L.perSite} officers`);
       const onDuty = t && Object.values(C.shifts).find(s => s.userId === t.id && !s.outAt);
       if (onDuty && onDuty.siteId !== siteId && t.role === 'guard' && d.role !== 'supervisor') fail(409, `${t.name} is on duty and must check out before changing site`);
     }
     if (!t) {
-      if (C.users.filter(x => x.role !== 'admin').length >= MAX_OFFICERS) fail(409, `Limit of ${MAX_OFFICERS} officer accounts reached`);
+      const L = limitsOf(C);
+      if (C.users.filter(x => x.role !== 'admin').length >= L.officers) fail(409, `Your ${L.name} plan allows ${L.officers} officer accounts. Upgrade your plan on the website to add more.`);
       if (!pin) fail(400, 'A PIN is required for new officers');
       t = { id: str(d.id, 80) || 'u' + crypto.randomUUID(), role: 'guard' };
       C.users.push(t);
@@ -373,7 +400,8 @@ const H = {
     if (!isAdmin(u)) fail(403, 'Only the administrator can change sites');
     const s = sanitizeSite(d);
     const i = C.sites.findIndex(x => x.id === s.id);
-    if (i < 0 && C.sites.length >= MAX_SITES) fail(409, `Limit of ${MAX_SITES} sites reached`);
+    const L = limitsOf(C);
+    if (i < 0 && C.sites.length >= L.sites) fail(409, `Your ${L.name} plan allows ${L.sites} site${L.sites === 1 ? '' : 's'}. Upgrade your plan on the website to add more.`);
     if (i >= 0) C.sites[i] = s; else C.sites.push(s);
   },
   siteDeleted(C, u, d) {
@@ -406,16 +434,30 @@ async function stripe(method, p, params) {
   if (!r.ok) { const e = new HttpError(r.status === 404 ? 404 : 502, j.error?.message || `Payment service error (${r.status})`); e.stripe = j.error; throw e; }
   return j;
 }
-let priceId = null;
-async function monthlyPrice() {
-  if (priceId) return priceId;
-  const found = await stripe('GET', '/v1/prices', { lookup_keys: [PRICE_LOOKUP], active: 'true', limit: 1 });
-  if (found.data && found.data[0]) return (priceId = found.data[0].id);
-  const product = await stripe('POST', '/v1/products', { name: '4 Horseman Security — company subscription',
-    description: `Guard management for up to ${MAX_SITES} sites and ${MAX_OFFICERS} officers` });
-  const price = await stripe('POST', '/v1/prices', { product: product.id, unit_amount: PRICE_CENTS, currency: 'usd', recurring: { interval: 'month' }, lookup_key: PRICE_LOOKUP });
-  console.log(`Created Stripe price ${price.id} ($${(PRICE_CENTS / 100).toFixed(2)}/month)`);
-  return (priceId = price.id);
+// Monthly Stripe price for a plan, found by lookup key and created the first time it is needed.
+// Enterprise prices are made per amount ("horseman_enterprise_monthly_<cents>").
+const priceIds = {};
+async function monthlyPrice(planId, cents) {
+  const P = PLANS[planId];
+  const amount = P ? P.price : cents;
+  const key = `horseman_${planId}_monthly_${amount}`;
+  if (priceIds[key]) return priceIds[key];
+  const found = await stripe('GET', '/v1/prices', { lookup_keys: [key], active: 'true', limit: 1 });
+  if (found.data && found.data[0]) return (priceIds[key] = found.data[0].id);
+  const name = P ? P.name : 'Enterprise';
+  const product = await stripe('POST', '/v1/products', { name: `4 Horseman Security — ${name} plan`,
+    description: P ? `Guard management for up to ${P.sites} site${P.sites === 1 ? '' : 's'} and ${P.officers} officers` : 'Guard management with custom limits' });
+  const price = await stripe('POST', '/v1/prices', { product: product.id, unit_amount: amount, currency: 'usd', recurring: { interval: 'month' }, lookup_key: key });
+  console.log(`Created Stripe price ${price.id} (${name}, $${(amount / 100).toFixed(2)}/month)`);
+  return (priceIds[key] = price.id);
+}
+// Moves a subscription to another monthly price, prorating the difference on the next invoice.
+async function switchPrice(C, price) {
+  const sub = await stripe('GET', `/v1/subscriptions/${encodeURIComponent(C.billing.subscription)}`);
+  const item = sub.items && sub.items.data && sub.items.data[0];
+  if (!item) fail(502, 'Could not read the subscription from the payment service');
+  const upd = await stripe('POST', `/v1/subscriptions/${encodeURIComponent(sub.id)}`, { items: [{ id: item.id, price }], proration_behavior: 'create_prorations' });
+  C.billing = billingOf(upd, C.billing);
 }
 const billingOf = (sub, prev = {}) => {
   const inv = sub.latest_invoice && typeof sub.latest_invoice === 'object' ? sub.latest_invoice : null;
@@ -438,7 +480,7 @@ async function completeSignup(p) {
   if (!['active', 'trialing'].includes(sub.status)) return null;
   if (p.companyId && S.companies[p.companyId]) return S.companies[p.companyId];
   const C = createCompany({ name: p.companyName, adminName: p.adminName, email: p.email, pinHash: p.pinHash, billing: billingOf(sub) });
-  C.lang = p.lang || 'en';
+  C.lang = p.lang || 'en'; C.plan = PLANS[p.plan] ? p.plan : 'starter';
   p.companyId = C.id; delete p.pinHash; flush();
   return C;
 }
@@ -486,7 +528,10 @@ function dashState(C, me) {
     sched: C.sched.filter(x => x.end > cutoff), pay: C.pay, profile: C.profile,
     clients: C.clients.map(publicClient), invoices: C.invoices, requests: C.requests,
     onDuty: Object.values(C.shifts).filter(s => !s.outAt).map(s => ({ id: s.id, userId: s.userId, siteId: s.siteId, inAt: s.inAt, inFence: s.inFence })),
-    limits: { sites: MAX_SITES, officersPerSite: MAX_PER_SITE, officers: MAX_OFFICERS }
+    limits: (L => ({ sites: L.sites, officersPerSite: L.perSite, officers: L.officers, plan: L.plan, planName: L.name }))(limitsOf(C)),
+    ...(C.owner ? { inquiries: S.inquiries.slice().reverse(), companies: Object.values(S.companies).filter(x => !x.owner)
+      .map(x => ({ code: x.code, name: x.name, ...(L => ({ plan: L.plan, planName: L.name, price: L.price, sites: L.sites, officers: L.officers }))(limitsOf(x)),
+        usage: { sites: x.sites.length, officers: x.users.filter(u => u.role !== 'admin').length }, status: x.billing?.status || 'none' })) } : {})
   };
 }
 const userIn = (C, id) => C.users.some(u => u.id === id) ? id : fail(400, 'Choose an officer');
@@ -534,6 +579,32 @@ const D = {
     if (!userById(C, id)) fail(500, 'The officer could not be added');
     if (d.rate !== undefined) C.pay.rates[id] = cents(d.rate);
     return { id };
+  },
+  // ----- owner company only: enterprise enquiries and setting a customer's plan -----
+  inquiryStatus(C, u, d) {
+    if (!C.owner) fail(403, 'Not available');
+    const q = S.inquiries.find(x => x.id === str(d.id, 80)); if (!q) fail(404, 'Enquiry not found');
+    q.status = ['new', 'contacted', 'won', 'closed'].includes(d.status) ? d.status : 'new';
+  },
+  async ownerSetPlan(C, u, d) {
+    if (!C.owner) fail(403, 'Not available');
+    const T = companyByCode(normCode(d.code));
+    if (!T || T.owner) fail(404, 'Company code not found');
+    const plan = str(d.plan, 20);
+    let L;
+    if (plan === 'enterprise') {
+      const sites = Math.round(+d.sites), officers = Math.round(+d.officers), price = Math.round(+d.price);
+      if (!(sites >= 1 && sites <= 1000)) fail(400, 'Enter the number of sites (1–1000)');
+      if (!(officers >= 1 && officers <= 20000)) fail(400, 'Enter the number of officers (1–20000)');
+      if (!(price >= 100)) fail(400, 'Enter the monthly price');
+      L = { sites, officers, price };
+    } else if (PLANS[plan]) L = PLANS[plan];
+    else fail(400, 'Choose a plan');
+    const over = overLimits(T, { ...L, perSite: L.officers });
+    if (over.length) fail(409, `${T.name}: ` + over.join(' ').replace(/You have/g, 'They have').replace(/ first\./g, ' first.'));
+    if (T.billing?.subscription && STRIPE_KEY) await switchPrice(T, await monthlyPrice(plan, L.price));
+    T.plan = plan; T.custom = plan === 'enterprise' ? L : undefined;
+    return { company: T.code };
   },
   profile(C, u, d) {
     const p = C.profile;
@@ -704,7 +775,7 @@ const baseUrl = req => (process.env.PUBLIC_URL || `${(req.headers['x-forwarded-p
 
 const TYPES = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.svg': 'image/svg+xml',
   '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.ico': 'image/x-icon', '.json': 'application/json', '.mp4': 'video/mp4', '.txt': 'text/plain; charset=utf-8' };
-const PAGES = { '/': 'index.html', '/signup': 'signup.html', '/signup/success': 'success.html', '/login': 'login.html', '/account': 'account.html', '/client': 'client.html', '/terms': 'terms.html', '/privacy': 'privacy.html' };
+const PAGES = { '/': 'index.html', '/signup': 'signup.html', '/signup/success': 'success.html', '/login': 'login.html', '/account': 'account.html', '/client': 'client.html', '/enterprise': 'enterprise.html', '/terms': 'terms.html', '/privacy': 'privacy.html' };
 function sendFile(res, dir, rel, status = 200) {
   const file = path.join(dir, path.normalize('/' + rel).slice(1));
   if (!file.startsWith(dir + path.sep)) return false;
@@ -742,8 +813,26 @@ async function route(req, res) {
   }
 
   if (req.method === 'GET' && p === '/api/health') return send(res, 200, { ok: true, server: 'guard-patrol', version: VERSION });
-  if (req.method === 'GET' && p === '/api/plan') return send(res, 200, { price: PRICE_CENTS, currency: 'usd', interval: 'month', signupOpen: !!STRIPE_KEY, graceDays: Math.round(GRACE_MS / 86400000),
-    limits: { sites: MAX_SITES, officersPerSite: MAX_PER_SITE, officers: MAX_OFFICERS, tourLocationsPerSite: MAX_CHECKPOINTS } });
+  if (req.method === 'GET' && p === '/api/plan') return send(res, 200, { plans: publicPlans(), price: PLANS.starter.price, currency: 'usd', interval: 'month',
+    signupOpen: !!STRIPE_KEY, graceDays: Math.round(GRACE_MS / 86400000), tourLocationsPerSite: MAX_CHECKPOINTS });
+  // Enterprise enquiry from the website (more sites or officers than the Business plan). The owner company sees these on its dashboard.
+  if (req.method === 'POST' && p === '/api/enterprise') {
+    const b = await readJson(req);
+    const key = `ent|${ip(req)}`; throttle(key);
+    const v = { company: str(b.company, 160).trim(), name: str(b.name, 120).trim(), email: str(b.email, 200).trim(), phone: str(b.phone, 40).trim(),
+      sites: Math.min(10000, Math.max(0, Math.round(+b.sites || 0))), officers: Math.min(100000, Math.max(0, Math.round(+b.officers || 0))), message: str(b.message, 2000).trim() };
+    if (v.company.length < 2) fail(400, 'Enter your company name');
+    if (v.name.length < 2) fail(400, 'Enter your name');
+    if (!isEmail(v.email)) fail(400, 'Enter a valid email address');
+    failed(key, 5, 60);
+    S.inquiries.push({ id: newId('eq'), ...v, at: Date.now(), status: 'new' });
+    if (S.inquiries.length > 500) S.inquiries.splice(0, S.inquiries.length - 500);
+    const O = S.companies[OWNER_ID];
+    if (O) O.messages.push({ id: 'm' + crypto.randomUUID(), channel: 'admin', from: 'system', fromName: 'System', system: true, at: Date.now(), srvAt: clock(),
+      text: `Enterprise enquiry: ${v.company} — ${v.name}, ${v.email}${v.phone ? ', ' + v.phone : ''} · ${v.sites || '?'} sites, ${v.officers || '?'} officers` });
+    save();
+    return send(res, 200, { ok: true });
+  }
 
   // ----- sign-up: details → Stripe Checkout → company created once payment succeeds -----
   if (req.method === 'POST' && p === '/api/signup') {
@@ -757,17 +846,19 @@ async function route(req, res) {
     if (adminName.length < 2) fail(400, 'Enter your name');
     if (!isEmail(email)) fail(400, 'Enter a valid email address');
     if (!isPin(pin)) fail(400, 'Choose a PIN of 4–8 digits');
+    const plan = PLANS[b.plan] ? b.plan : null;
+    if (!plan) fail(400, 'Choose a plan');
     failed(key, 10, 60); // at most 10 checkout attempts per hour from one address
-    const price = await monthlyPrice();
+    const price = await monthlyPrice(plan);
     const id = 'p' + crypto.randomUUID().replace(/-/g, '');
     const base = baseUrl(req);
     const cs = await stripe('POST', '/v1/checkout/sessions', {
       mode: 'subscription', line_items: [{ price, quantity: 1 }], client_reference_id: id, customer_email: email,
       success_url: `${base}/signup/success?session_id={CHECKOUT_SESSION_ID}`, cancel_url: `${base}/signup?canceled=1`,
       locale: STRIPE_LOCALES[str(b.lang, 8)] || 'auto',
-      metadata: { pending: id, company: companyName }, subscription_data: { metadata: { pending: id, company: companyName } }
+      metadata: { pending: id, company: companyName, plan }, subscription_data: { metadata: { pending: id, company: companyName, plan } }
     });
-    S.pending[id] = { id, sessionId: cs.id, companyName, adminName, email, pinHash: hashPin(pin), lang: str(b.lang, 8), createdAt: Date.now() };
+    S.pending[id] = { id, sessionId: cs.id, companyName, adminName, email, pinHash: hashPin(pin), lang: str(b.lang, 8), plan, createdAt: Date.now() };
     save();
     return send(res, 200, { url: cs.url });
   }
@@ -829,6 +920,7 @@ async function route(req, res) {
       reports: [...reports.values()].filter(r => r.companyId === C.id && r.updatedAt > since && (sup || r.userId === me.id)),
       shifts: Object.values(C.shifts).filter(s => s.srvAt > since && (sup || s.userId === me.id)).map(({ track, ...s }) => s),
       acks: C.acks[me.id] || {},
+      limits: (L => ({ sites: L.sites, perSite: L.perSite, officers: L.officers, checkpoints: L.checkpoints, plan: L.name }))(limitsOf(C)),
       // My schedule (app): my planned shifts from yesterday to five weeks ahead, plus open shifts at my site.
       schedule: C.sched.filter(x => x.end > Date.now() - 86400000 && x.start < Date.now() + 35 * 86400000 &&
         (x.userId === me.id || (!x.userId && (me.role !== 'guard' || x.siteId === me.siteId))))
@@ -849,7 +941,7 @@ async function route(req, res) {
     }
     if (req.method === 'POST') {
       const fn = Object.hasOwn(D, p.slice(10)) && D[p.slice(10)]; if (!fn) fail(404, 'Not found');
-      const out = fn(C, me, await readJson(req)) || {};
+      const out = (await fn(C, me, await readJson(req))) || {};
       save(); return send(res, 200, { ok: true, ...out, state: dashState(C, me) });
     }
   }
@@ -864,14 +956,26 @@ async function route(req, res) {
         billing: C.owner ? { status: 'owner' } : C.billing ? { status: C.billing.status, periodEnd: C.billing.periodEnd, cancelAtPeriodEnd: C.billing.cancelAtPeriodEnd,
           overdue: OVERDUE(C.billing), dueSince: C.billing.dueSince, deleteAt: C.billing.deleteAt, payUrl: C.billing.payUrl } : { status: 'none' },
         graceDays: Math.round(GRACE_MS / 86400000),
-        price: PRICE_CENTS,
-        usage: { sites: C.sites.length, maxSites: MAX_SITES, officers: C.users.filter(x => x.role !== 'admin').length, maxOfficers: MAX_OFFICERS } });
+        price: limitsOf(C).price, plan: limitsOf(C), plans: publicPlans(),
+        usage: { sites: C.sites.length, maxSites: limitsOf(C).sites, officers: C.users.filter(x => x.role !== 'admin').length, maxOfficers: limitsOf(C).officers } });
     }
     if (C.owner || !C.billing?.subscription) fail(400, 'This company has no subscription to manage');
     if (req.method === 'POST' && (p === '/api/account/cancel' || p === '/api/account/resume')) {
       const sub = await stripe('POST', `/v1/subscriptions/${encodeURIComponent(C.billing.subscription)}`, { cancel_at_period_end: p.endsWith('cancel') ? 'true' : 'false' });
       C.billing = billingOf(sub, C.billing); save();
       return send(res, 200, { ok: true, cancelAtPeriodEnd: C.billing.cancelAtPeriodEnd, periodEnd: C.billing.periodEnd });
+    }
+    // Change between Starter, Pro and Business. Stripe prorates the difference on the next invoice.
+    if (req.method === 'POST' && p === '/api/account/plan') {
+      const b = await readJson(req);
+      const P = PLANS[b.plan]; if (!P) fail(400, 'Choose a plan');
+      if (C.plan === P.id) return send(res, 200, { ok: true });
+      if (C.plan === 'enterprise') fail(409, 'Your Enterprise plan is managed by 4 Horseman Security. Contact us to change it.');
+      const over = overLimits(C, { ...P, perSite: P.officers });
+      if (over.length) fail(409, over.join(' '));
+      await switchPrice(C, await monthlyPrice(P.id));
+      C.plan = P.id; save();
+      return send(res, 200, { ok: true, plan: limitsOf(C) });
     }
     if (req.method === 'POST' && p === '/api/account/portal') {
       const ps = await stripe('POST', '/v1/billing_portal/sessions', { customer: C.billing.customer, return_url: `${baseUrl(req)}/account` });
