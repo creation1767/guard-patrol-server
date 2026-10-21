@@ -1,0 +1,46 @@
+# Builds the iPhone app on a cloud Mac every time the iPhone project or the shared app changes.
+# No Apple account is needed for this check: it compiles for the iPhone Simulator without signing.
+# The finished simulator app is attached to each run as "HorsemanSecurity-simulator".
+name: iPhone app
+
+on:
+  push:
+    branches: [main]
+    paths: ['ios/**', 'app/**', '.github/workflows/ios.yml']
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Xcode version
+        run: xcodebuild -version
+
+      - name: Build for the iPhone Simulator (no signing)
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project ios/HorsemanSecurity.xcodeproj \
+            -target HorsemanSecurity \
+            -sdk iphonesimulator \
+            -configuration Debug \
+            CODE_SIGNING_ALLOWED=NO \
+            SYMROOT="$PWD/build" \
+            build 2>&1 | tee build.log
+
+      - name: Package the simulator app
+        run: cd build/Debug-iphonesimulator && zip -qr "$GITHUB_WORKSPACE/HorsemanSecurity-simulator.zip" HorsemanSecurity.app
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: HorsemanSecurity-simulator
+          path: HorsemanSecurity-simulator.zip
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: build-log
+          path: build.log
