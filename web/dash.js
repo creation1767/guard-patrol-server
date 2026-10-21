@@ -116,9 +116,10 @@
     const b = A.billing;
     const statusRow = () => {
       if (b.status === 'owner') return `<dl class="kv"><dt>${esc(T('Billing'))}</dt><dd>${esc(T('Not billed (owner company)'))}</dd></dl>`;
-      const labels = { active: ['Active', 'ok'], trialing: ['Trial', 'ok'], past_due: ['Payment overdue', 'bad'], unpaid: ['Payment overdue', 'bad'], canceled: ['Ended', 'bad'], incomplete: ['Incomplete', 'warn'] };
+      const labels = { active: ['Active', 'ok'], trialing: ['Free trial', 'ok'], past_due: ['Payment overdue', 'bad'], unpaid: ['Payment overdue', 'bad'], canceled: ['Ended', 'bad'], incomplete: ['Incomplete', 'warn'] };
       const [lt, lc] = b.cancelAtPeriodEnd ? ['Cancelling', 'warn'] : labels[b.status] || [b.status, ''];
       return `<div class="row-between"><div><div class="plan-name">${esc(T('{name} plan', { name: T(A.plan?.name || 'Company plan') }))}</div><div class="price small-price">${money(A.price)} <small>${esc(T('/ month'))}</small></div></div>${pill(T(lt), lc)}</div>
+        ${b.trialEnd && !b.cancelAtPeriodEnd ? `<div class="alert info" style="margin:12px 0 0">${esc(T('Free trial until {date}. Your first payment of {price} is taken then. Cancel before then and you pay nothing.', { date: fDate(b.trialEnd), price: money(A.price) }))}</div>` : ''}
         <dl class="kv">${b.cancelAtPeriodEnd ? `<dt>${esc(T('Access ends'))}</dt><dd>${fDate(b.periodEnd)}</dd>` : `<dt>${esc(T('Next payment'))}</dt><dd>${fDate(b.periodEnd)}</dd>`}
         ${b.overdue ? `<dt>${esc(T('Deleted if unpaid on'))}</dt><dd class="bad-text">${fDate(b.deleteAt)}</dd>` : ''}</dl>
         <p class="dim small" style="margin-top:12px">${esc(T('Charged automatically every month. If a payment fails you have {n} days to pay before the account and its data are deleted.', { n: A.graceDays || 15 }))}</p>
@@ -143,7 +144,7 @@
           }).join('')}</ul>` : empty(T('Nothing scheduled today'), T('Add shifts on the Schedule tab.'))}</section>
         <section class="card"><span class="eyebrow">${esc(T('Company code'))}</span>
           <div class="bigcode gold-text" translate="no">${esc(A.company.code)}</div>
-          <p class="muted small">${esc(T('Officers sign in with this code plus their badge number and PIN, in the Android app or the web app.'))}</p></section>
+          <p class="muted small">${esc(T('Officers sign in with this code plus their badge number and PIN, in the Android or iPhone app, or the web app.'))}</p></section>
         <section class="card" id="subCard"><div class="row-between" style="margin-bottom:6px"><span class="eyebrow">${esc(T('Subscription'))}</span></div>${statusRow()}</section>
         <section class="card"><span class="eyebrow">${esc(T('Usage'))}</span>
           <dl class="kv"><dt>${esc(T('Sites'))}</dt><dd>${esc(T('{a} of {b}', { a: A.usage.sites, b: A.usage.maxSites }))}</dd></dl><div class="meter"><i style="width:${A.usage.sites / A.usage.maxSites * 100}%"></i></div>

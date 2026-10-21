@@ -20,8 +20,8 @@
 <main class="auth"><div class="auth-grid">
   <form class="card panel" id="f" novalidate>
     <span class="eyebrow">Create your company</span>
-    <h1>Start your subscription</h1>
-    <p class="muted small">You'll be the administrator of your company's account.</p>
+    <h1>Start your free trial</h1>
+    <p class="muted small">You'll be the administrator of your company's account. Try everything free for 14 days.</p>
     <div class="alert info" id="closed" hidden>Online sign-up opens soon. Please check back shortly.</div>
     <div class="alert info" id="canceled" hidden>Payment was cancelled, so nothing was charged. You can try again below.</div>
     <div class="field"><label>Plan</label>
@@ -39,9 +39,9 @@
       <div class="field"><label for="pin2">Confirm PIN</label><input id="pin2" name="pin2" type="password" inputmode="numeric" maxlength="8" required autocomplete="new-password"></div>
     </div>
     <p class="hint dim small" style="margin-top:8px">4–8 digits. You'll sign in with your company code, badge 1000 and this PIN.</p>
-    <label class="check"><input type="checkbox" id="agree" required><span>I agree to the <a href="/terms" target="_blank">Terms</a> and <a href="/privacy" target="_blank">Privacy Policy</a>, including automatic monthly payments and that our company data is deleted when the subscription ends or a payment is more than 15 days overdue.</span></label>
+    <label class="check"><input type="checkbox" id="agree" required><span>I agree to the <a href="/terms" target="_blank">Terms</a> and <a href="/privacy" target="_blank">Privacy Policy</a>, including automatic monthly payments once the free trial ends, and that our company data is deleted when the subscription ends or a payment is more than 15 days overdue.</span></label>
     <div class="alert err" id="err" hidden></div>
-    <div class="form-actions"><button class="btn btn-gold btn-big" id="go">Continue to secure payment</button>
+    <div class="form-actions"><button class="btn btn-gold btn-big" id="go">Start my free trial</button>
       <p class="secure"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg> Payment is handled by Stripe. Card details never touch our servers.</p></div>
   </form>
   <aside class="card hl summary panel">
@@ -50,10 +50,13 @@
     <div class="line"><span class="muted">Sites</span><span id="sumSites">Up to 2</span></div>
     <div class="line"><span class="muted">Officers</span><span id="sumOfficers">Up to 25</span></div>
     <div class="line"><span class="muted">Tour locations</span><span>20 per site</span></div>
-    <div class="line"><span class="muted">Apps</span><span>Android + web</span></div>
+    <div class="line"><span class="muted">Apps</span><span>Android, iPhone + web</span></div>
     <div class="line"><span class="muted">Office tools</span><span>Scheduling, payroll, billing, client portal</span></div>
-    <div class="line total"><span>Due today</span><span><span id="sumPrice">$199.00</span> / month</span></div>
-    <p class="dim small" style="margin-top:14px">Charged automatically every month. Cancel anytime from your account page.</p>
+    <div class="line" data-trial><span class="muted">Free trial</span><span>14 days</span></div>
+    <div class="line" data-trial><span class="muted">After the trial</span><span><span id="sumThen">$199.00</span> / month</span></div>
+    <div class="line total"><span>Due today</span><span id="sumDue">$0.00</span></div>
+    <p class="dim small" style="margin-top:14px" data-trial>Your card is saved securely and first charged when the trial ends. Cancel anytime before then and you pay nothing.</p>
+    <p class="dim small" style="margin-top:14px" data-notrial hidden>Charged automatically every month. Cancel anytime from your account page.</p>
   </aside>
 </div></main>
 <footer><div class="wrap">
@@ -67,6 +70,7 @@
   if (new URLSearchParams(location.search).get('canceled')) HM.$('#canceled').hidden = false;
   // Plans: Starter / Pro / Business. ?plan= from the pricing page picks one; the summary follows the choice.
   let PL = { starter: { name: 'Starter', price: 9900, sites: 1, officers: 10 }, pro: { name: 'Pro', price: 19900, sites: 2, officers: 25 }, business: { name: 'Business', price: 34900, sites: 5, officers: 50 } };
+  let trial = true; // the server offers a 14-day free trial unless it was turned off
   const want = new URLSearchParams(location.search).get('plan');
   if (PL[want]) f.querySelector(`input[name=plan][value="${want}"]`).checked = true;
   const summary = () => {
@@ -74,12 +78,14 @@
     HM.$('#sumName').textContent = HM.t('{name} plan', { name: HM.t(x.name) });
     HM.$('#sumSites').textContent = HM.t(x.sites === 1 ? '1 site' : 'Up to {n} sites', { n: x.sites });
     HM.$('#sumOfficers').textContent = HM.t('Up to {n}', { n: x.officers });
-    HM.$('#sumPrice').textContent = HM.money(x.price);
+    HM.$('#sumThen').textContent = HM.money(x.price);
+    HM.$('#sumDue').textContent = HM.money(trial ? 0 : x.price);
   };
   f.addEventListener('change', e => { if (e.target.name === 'plan') summary(); });
   summary();
   HM.api('GET', '/api/plan').then(p => {
     for (const x of p.plans || []) { PL[x.id] = x; document.querySelectorAll(`[data-plan-price="${x.id}"]`).forEach(e => e.textContent = HM.money(x.price).replace(/\.00$/, '')); }
+    if (p.trialDays === 0) { trial = false; document.querySelectorAll('[data-trial]').forEach(e => e.hidden = true); document.querySelectorAll('[data-notrial]').forEach(e => e.hidden = false); HM.$('h1').textContent = HM.t('Start your subscription'); go.textContent = HM.t('Continue to secure payment'); }
     summary();
     if (!p.signupOpen) { HM.$('#closed').hidden = false; go.disabled = true; }
   }).catch(() => {});
@@ -98,7 +104,7 @@
     if (!HM.$('#agree').checked) return HM.alertBox(err, 'Please accept the Terms and Privacy Policy.');
     go.disabled = true; go.textContent = 'Opening secure checkout…';
     try { const r = await HM.api('POST', '/api/signup', { plan: v.plan, companyName: v.companyName.trim(), adminName: v.adminName.trim(), email: v.email.trim(), pin: v.pin, lang: (window.I18N && I18N.lang) || 'en' }); location.href = r.url; }
-    catch (x) { HM.alertBox(err, x.message); go.disabled = false; go.textContent = 'Continue to secure payment'; }
+    catch (x) { HM.alertBox(err, x.message); go.disabled = false; go.textContent = HM.t(trial ? 'Start my free trial' : 'Continue to secure payment'); }
   });
 })();
 </script>
