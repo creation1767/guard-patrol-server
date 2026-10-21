@@ -24,9 +24,10 @@
  *   STRIPE_SECRET_KEY Stripe secret key (sk_test_… or sk_live_…). Without it the website shows sign-up as unavailable.
  *   PRICE_STARTER / PRICE_PRO / PRICE_BUSINESS   monthly plan prices in cents (defaults 9900 / 19900 / 34900)
  *   GRACE_DAYS        days after a missed payment before the company is deleted (default 15)
+ *   TRIAL_DAYS        free trial for new companies, in days (default 14; 0 turns it off). One trial per email address.
  *   PUBLIC_URL        public address of this server (default: worked out from each request)
  *   SEED_DEMO_SITES   "false" to start the owner company with no sites
- *   ALLOWED_ORIGINS   extra CORS origins for the API (the Android app's origin is always allowed)
+ *   ALLOWED_ORIGINS   extra CORS origins for the API (the Android and iPhone apps' origins are always allowed)
  *   MAX_CHECKPOINTS 20 · SESSION_DAYS 30
  *   Plans (sites / officers): Starter 1 / 10 · Pro 2 / 25 · Business 5 / 50 · Enterprise: limits and price set per company
  *   by the owner company's administrator on the website dashboard.
@@ -36,7 +37,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
-const VERSION = '2.2.0';
+const VERSION = '2.3.0';
 const PORT = +process.env.PORT || 8080;
 const DATA_DIR = path.resolve(process.env.DATA_DIR || process.env.RAILWAY_VOLUME_MOUNT_PATH || path.join(__dirname, 'data'));
 const REPORT_DIR = path.join(DATA_DIR, 'reports');
@@ -62,10 +63,11 @@ const OWNER_CODE = (process.env.OWNER_COMPANY_CODE || 'HORSEMAN').toUpperCase();
 const STRIPE_KEY = process.env.STRIPE_SECRET_KEY || '';
 const STRIPE_API = process.env.STRIPE_API_BASE || 'https://api.stripe.com';
 const GRACE_MS = (+process.env.GRACE_DAYS || 15) * 86400000;
+const TRIAL_DAYS = Math.max(0, Math.min(90, Math.round(process.env.TRIAL_DAYS === undefined || process.env.TRIAL_DAYS === '' ? 14 : +process.env.TRIAL_DAYS || 0)));
 const BILLING_SYNC_MS = (+process.env.BILLING_SYNC_MINUTES || 15) * 60000;
 // Stripe Checkout languages for the website's languages (Haitian Creole and Arabic are not offered by Stripe: French / auto).
 const STRIPE_LOCALES = { en: 'en', es: 'es', fr: 'fr', ht: 'fr', pt: 'pt-BR', ar: 'auto', ru: 'ru', de: 'de', fil: 'fil' };
-const ALLOWED_ORIGINS = ['https://appassets.androidplatform.net'].concat((process.env.ALLOWED_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean));
+const ALLOWED_ORIGINS = ['https://appassets.androidplatform.net', 'horseman://app'].concat((process.env.ALLOWED_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean));
 
 // ---------- helpers ----------
 let lastClock = 0;
@@ -172,6 +174,7 @@ catch (e) {
 }
 S.pending = S.pending || {};
 S.inquiries = S.inquiries || [];
+S.trialUsed = S.trialUsed || []; // email addresses that already had a free trial
 for (const C of Object.values(S.companies)) { const e = emptyOffice(); for (const k of Object.keys(e)) if (C[k] === undefined) C[k] = e[k]; }
 const owner = () => S.companies[OWNER_ID];
 if (owner() && owner().code !== OWNER_CODE && !Object.values(S.companies).some(c => c.code === OWNER_CODE)) owner().code = OWNER_CODE;
@@ -462,7 +465,7 @@ async function switchPrice(C, price) {
 const billingOf = (sub, prev = {}) => {
   const inv = sub.latest_invoice && typeof sub.latest_invoice === 'object' ? sub.latest_invoice : null;
   return { customer: typeof sub.customer === 'string' ? sub.customer : sub.customer?.id, subscription: sub.id, status: sub.status,
-    periodEnd: sub.current_period_end ? sub.current_period_end * 1000 : null, cancelAtPeriodEnd: !!sub.cancel_at_period_end,
+    periodEnd: sub.current_period_end ? sub.current_period_end * 1000 : null, trialEnd: sub.status === 'trialing' && sub.trial_end ? sub.trial_end * 1000 : null, cancelAtPeriodEnd: !!sub.cancel_at_period_end,
     cancelReason: sub.cancellation_details?.reason || null,
     payUrl: inv && inv.status === 'open' ? inv.hosted_invoice_url || null : null,
     invoiceDueAt: inv && inv.status === 'open' ? (inv.due_date || inv.period_end || inv.created) * 1000 : null,
@@ -481,6 +484,7 @@ async function completeSignup(p) {
   if (p.companyId && S.companies[p.companyId]) return S.companies[p.companyId];
   const C = createCompany({ name: p.companyName, adminName: p.adminName, email: p.email, pinHash: p.pinHash, billing: billingOf(sub) });
   C.lang = p.lang || 'en'; C.plan = PLANS[p.plan] ? p.plan : 'starter';
+  if (p.trial && !S.trialUsed.includes(p.email.toLowerCase())) S.trialUsed.push(p.email.toLowerCase());
   p.companyId = C.id; delete p.pinHash; flush();
   return C;
 }
@@ -774,7 +778,7 @@ const ip = req => (req.headers['x-forwarded-for'] || '').split(',')[0].trim() ||
 const baseUrl = req => (process.env.PUBLIC_URL || `${(req.headers['x-forwarded-proto'] || 'http').split(',')[0]}://${req.headers['x-forwarded-host'] || req.headers.host}`).replace(/\/+$/, '');
 
 const TYPES = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.svg': 'image/svg+xml',
-  '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.ico': 'image/x-icon', '.json': 'application/json', '.mp4': 'video/mp4', '.txt': 'text/plain; charset=utf-8' };
+  '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.ico': 'image/x-icon', '.json': 'application/json', '.mp4': 'video/mp4', '.webmanifest': 'application/manifest+json; charset=utf-8', '.txt': 'text/plain; charset=utf-8' };
 const PAGES = { '/': 'index.html', '/signup': 'signup.html', '/signup/success': 'success.html', '/login': 'login.html', '/account': 'account.html', '/client': 'client.html', '/enterprise': 'enterprise.html', '/terms': 'terms.html', '/privacy': 'privacy.html' };
 function sendFile(res, dir, rel, status = 200) {
   const file = path.join(dir, path.normalize('/' + rel).slice(1));
@@ -814,7 +818,7 @@ async function route(req, res) {
 
   if (req.method === 'GET' && p === '/api/health') return send(res, 200, { ok: true, server: 'guard-patrol', version: VERSION });
   if (req.method === 'GET' && p === '/api/plan') return send(res, 200, { plans: publicPlans(), price: PLANS.starter.price, currency: 'usd', interval: 'month',
-    signupOpen: !!STRIPE_KEY, graceDays: Math.round(GRACE_MS / 86400000), tourLocationsPerSite: MAX_CHECKPOINTS });
+    signupOpen: !!STRIPE_KEY, trialDays: TRIAL_DAYS, graceDays: Math.round(GRACE_MS / 86400000), tourLocationsPerSite: MAX_CHECKPOINTS });
   // Enterprise enquiry from the website (more sites or officers than the Business plan). The owner company sees these on its dashboard.
   if (req.method === 'POST' && p === '/api/enterprise') {
     const b = await readJson(req);
@@ -850,17 +854,19 @@ async function route(req, res) {
     if (!plan) fail(400, 'Choose a plan');
     failed(key, 10, 60); // at most 10 checkout attempts per hour from one address
     const price = await monthlyPrice(plan);
+    // Free trial: the card is saved now and first charged when the trial ends. One trial per email address.
+    const trial = TRIAL_DAYS > 0 && !S.trialUsed.includes(email.toLowerCase());
     const id = 'p' + crypto.randomUUID().replace(/-/g, '');
     const base = baseUrl(req);
     const cs = await stripe('POST', '/v1/checkout/sessions', {
       mode: 'subscription', line_items: [{ price, quantity: 1 }], client_reference_id: id, customer_email: email,
       success_url: `${base}/signup/success?session_id={CHECKOUT_SESSION_ID}`, cancel_url: `${base}/signup?canceled=1`,
       locale: STRIPE_LOCALES[str(b.lang, 8)] || 'auto',
-      metadata: { pending: id, company: companyName, plan }, subscription_data: { metadata: { pending: id, company: companyName, plan } }
+      metadata: { pending: id, company: companyName, plan }, subscription_data: { metadata: { pending: id, company: companyName, plan }, ...(trial ? { trial_period_days: TRIAL_DAYS } : {}) }
     });
-    S.pending[id] = { id, sessionId: cs.id, companyName, adminName, email, pinHash: hashPin(pin), lang: str(b.lang, 8), plan, createdAt: Date.now() };
+    S.pending[id] = { id, sessionId: cs.id, companyName, adminName, email, pinHash: hashPin(pin), lang: str(b.lang, 8), plan, trial, createdAt: Date.now() };
     save();
-    return send(res, 200, { url: cs.url });
+    return send(res, 200, { url: cs.url, trial });
   }
   if (req.method === 'GET' && p === '/api/signup/complete') {
     const sid = str(url.searchParams.get('session_id'), 300);
@@ -953,7 +959,7 @@ async function route(req, res) {
       try { await refreshBilling(C); } catch (e) { }
       if (!S.companies[C.id]) fail(410, 'This subscription has ended and the company account was removed.');
       return send(res, 200, { company: { ...publicCompany(C), createdAt: C.createdAt, email: C.email || '' }, me: publicUser(me),
-        billing: C.owner ? { status: 'owner' } : C.billing ? { status: C.billing.status, periodEnd: C.billing.periodEnd, cancelAtPeriodEnd: C.billing.cancelAtPeriodEnd,
+        billing: C.owner ? { status: 'owner' } : C.billing ? { status: C.billing.status, periodEnd: C.billing.periodEnd, cancelAtPeriodEnd: C.billing.cancelAtPeriodEnd, trialEnd: C.billing.trialEnd || null,
           overdue: OVERDUE(C.billing), dueSince: C.billing.dueSince, deleteAt: C.billing.deleteAt, payUrl: C.billing.payUrl } : { status: 'none' },
         graceDays: Math.round(GRACE_MS / 86400000),
         price: limitsOf(C).price, plan: limitsOf(C), plans: publicPlans(),

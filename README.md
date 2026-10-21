@@ -3,7 +3,8 @@
 One small Node.js program (no dependencies, Node 18+) that runs:
 
 - **The website**: home page, sign-up with a monthly Stripe subscription (Starter, Pro or Business; Enterprise on request), log in, an administrator dashboard (account & billing, scheduling, payroll, client invoicing, client portal accounts) and a client portal at /client.
-- **The web app** at `/app/`: the same app as on Android, in a browser.
+- **The web app** at `/app/`: the same app as on Android, in a browser. On iPhone it can be installed from Safari (Share → Add to Home Screen) and works offline.
+- **The iPhone app**: the Xcode project in [`ios/`](ios/README.md) bundles the same `app/` folder with a native QR scanner and location.
 - **The API** the Android app and web app use to sync accounts, sites, shifts, guard tours, reports and messages.
 
 ## How companies work
@@ -15,10 +16,11 @@ One small Node.js program (no dependencies, Node 18+) that runs:
 
 ## Subscriptions (Stripe)
 
-1. Sign-up collects the company name, the administrator's name, email and PIN, then sends the buyer to **Stripe Checkout**. Card details never reach this server.
-2. When payment succeeds, the company is created and the success page shows its company code. If the buyer closes the page early, the server finishes the setup automatically within 15 minutes.
-3. On the account page, administrators can update their card (Stripe billing portal), cancel (access continues to the end of the paid month), or undo a cancellation.
-4. Every 15 minutes the server checks each subscription with Stripe. When a subscription has **ended** (cancelled, or Stripe stopped retrying a failed payment), that company and all of its data are **deleted**.
+1. New companies get a **14-day free trial** (`TRIAL_DAYS`, 0 turns it off). The card is saved at sign-up and first charged when the trial ends; one trial per email address.
+2. Sign-up collects the company name, the administrator's name, email and PIN, then sends the buyer to **Stripe Checkout**. Card details never reach this server.
+3. When checkout succeeds, the company is created and the success page shows its company code. If the buyer closes the page early, the server finishes the setup automatically within 15 minutes.
+4. On the account page, administrators can update their card (Stripe billing portal), cancel (access continues to the end of the paid month), or undo a cancellation.
+5. Every 15 minutes the server checks each subscription with Stripe. When a subscription has **ended** (cancelled, or Stripe stopped retrying a failed payment), that company and all of its data are **deleted**.
 
 The server creates the Stripe products and monthly prices for each plan itself on first use. The only setup is one variable.
 
