@@ -1,0 +1,16 @@
+{
+  "name": "4 Horseman Security",
+  "short_name": "4 Horseman",
+  "description": "Check-ins, post orders, QR guard tours and reports for Level 2 & 3 security officers.",
+  "id": "/app/",
+  "start_url": "/app/",
+  "scope": "/app/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#06080e",
+  "theme_color": "#06080e",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

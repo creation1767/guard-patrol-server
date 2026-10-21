@@ -282,21 +282,47 @@ function scanQR(prompt, cb) {
   if (Native && Native.scanQR) { Native.scanQR(prompt || 'Scan checkpoint QR code'); return; }
   webScan(prompt);
 }
+// Loads a script once (used for the QR decoder on phones whose browser has no built-in QR detector, such as iPhone Safari).
+const loadScript = src => new Promise((res, rej) => { const el = document.createElement('script'); el.src = src; el.onload = res; el.onerror = rej; document.head.appendChild(el); });
+// QR label image without the Android app (iPhone and browsers): drawn by the bundled qrcode.js generator.
+function webQr(text) {
+  try {
+    if (!window.qrcode) return '';
+    const q = qrcode(0, 'M'); q.addData(text); q.make();
+    const cell = Math.max(4, Math.floor(512 / (q.getModuleCount() + 8)));
+    return q.createDataURL(cell, cell * 4);
+  }
+  catch (e) { return ''; }
+}
 async function webScan(prompt) {
-  if (!('BarcodeDetector' in window) || !navigator.mediaDevices?.getUserMedia) return manualCode();
+  if (!navigator.mediaDevices?.getUserMedia) return manualCode();
+  const native = 'BarcodeDetector' in window && await BarcodeDetector.getSupportedFormats?.().then(f => f.includes('qr_code')).catch(() => false);
+  if (!native && !window.jsQR) { try { await loadScript('jsqr.js'); } catch (e) { return manualCode(); } }
   let stream;
-  try { stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } }); }
+  try { stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false }); }
   catch (e) { return manualCode(); }
   let alive = true;
   stopWebScan = () => { alive = false; stream.getTracks().forEach(t => t.stop()); stopWebScan = null; };
   modal(`<h2>${esc(prompt || 'Scan QR code')}</h2><video class="scanvid" playsinline muted autoplay></video>
     <button class="btn-ghost btn-block" style="margin-top:14px" data-act="manualCode">Enter code manually</button>`, () => stopWebScan && stopWebScan());
-  const v = $('.scanvid'); v.srcObject = stream; await v.play().catch(() => { });
-  const det = new BarcodeDetector({ formats: ['qr_code'] });
+  const v = $('.scanvid'); v.setAttribute('playsinline', ''); v.srcObject = stream; await v.play().catch(() => { });
+  const det = native ? new BarcodeDetector({ formats: ['qr_code'] }) : null;
+  const cv = document.createElement('canvas'), cx = cv.getContext('2d', { willReadFrequently: true });
+  const found = text => { closeModal(); buzz(60); GP.onScan(text); };
   const loop = async () => {
     if (!alive) return;
-    try { const r = await det.detect(v); if (r.length) { closeModal(); GP.onScan(r[0].rawValue); return; } } catch (e) { }
-    setTimeout(loop, 250);
+    try {
+      if (det) { const r = await det.detect(v); if (r.length) return found(r[0].rawValue); }
+      else if (v.videoWidth) {
+        const k = Math.min(1, 800 / Math.max(v.videoWidth, v.videoHeight));
+        cv.width = Math.round(v.videoWidth * k); cv.height = Math.round(v.videoHeight * k);
+        cx.drawImage(v, 0, 0, cv.width, cv.height);
+        const img = cx.getImageData(0, 0, cv.width, cv.height);
+        const r = window.jsQR(img.data, img.width, img.height, { inversionAttempts: 'dontInvert' });
+        if (r && r.data) return found(r.data);
+      }
+    } catch (e) { }
+    setTimeout(loop, det ? 250 : 180);
   };
   loop();
 }
@@ -407,6 +433,14 @@ async function pinHash(badge, pin) {
 }
 // Language menu (i18n.js); changing it reloads the app in the new language.
 const langSelect = (style = '') => window.I18N ? `<select class="lang-select" translate="no" aria-label="Language" style="${style}" onchange="I18N.set(this.value)">${I18N.langs.map(([c, n]) => `<option value="${c}"${c === I18N.lang ? ' selected' : ''}>${n}</option>`).join('')}</select>` : '';
+// iPhone/iPad in Safari (not yet installed): show how to add the app to the home screen.
+const isIOS = () => /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const installed = () => window.navigator.standalone === true || matchMedia('(display-mode: standalone)').matches || !!window.webkit?.messageHandlers?.horseman;
+function iosInstallTip() {
+  if (!isIOS() || installed() || location.protocol !== 'https:') return '';
+  return `<div class="card install-tip" style="margin-top:20px;text-align:left"><b>Install on your iPhone</b>
+    <p class="small muted" style="margin-top:6px">Tap the Share button in Safari, then Add to Home Screen. The app gets its own icon and opens full screen.</p></div>`;
+}
 function Login() {
   const srv = serverMode();
   return `<div class="login">
@@ -422,6 +456,7 @@ function Login() {
     ${srv ? `<p class="muted small center" style="margin-top:22px;display:flex;align-items:center;justify-content:center;gap:8px"><span class="medal ok" style="width:26px;height:26px">${ic('sync', 'sm')}</span>Connected to company server</p>` : `<a class="item" href="#" data-act="serverCfg" style="margin-top:22px"><span class="medal">${ic('sync', 'sm')}</span>
       <div class="grow"><span class="label">Company server</span><p class="small" style="margin-top:2px">Not connected — this phone works on its own</p></div><span class="chev">${ic('chev', 'sm')}</span></a>`}
     <div class="center" style="margin-top:18px">${langSelect()}</div>
+    ${iosInstallTip()}
     ${srv ? '' : `<p class="muted small center" style="margin-top:20px;line-height:1.7">Stand-alone demo — Administrator <b class="gold">1000</b> / <b class="gold">1234</b><br>Demo officer <b class="gold">2001</b> / <b class="gold">0000</b></p>`}
   </div>`;
 }
@@ -939,7 +974,7 @@ H.exportRun = (f) => {
     const bytes = buildReportWorkbook(s);
     const name = `4-Horseman-reports_${ymd(s.from || (s.list[0] ? reportWhen(s.list[0]) : now()))}_to_${ymd(s.to - 1)}.xlsx`;
     saveBytes(name, XLSX_MIME, bytes);
-    closeModal(); toast(Native?.saveFile ? 'Spreadsheet saved to Downloads' : 'Spreadsheet downloaded', 'ok');
+    closeModal(); toast(Native?.saveFile ? (isIOS() ? 'Spreadsheet ready' : 'Spreadsheet saved to Downloads') : 'Spreadsheet downloaded', 'ok');
   } catch (e) { toast('Could not create the spreadsheet: ' + e.message, 'err'); }
 };
 function saveBytes(name, mime, bytes) {
@@ -1200,7 +1235,7 @@ function More() {
       ${isSup() ? row('#', 'download', 'Export data', 'JSON backup of this device', 'exportData') : ''}
       ${row('#', 'logout', 'Sign out', '', 'logout')}
     </div>
-    <p class="note">4 Horseman Security Level 2 &amp; 3 · version 1.6</p></div>`;
+    <p class="note">4 Horseman Security Level 2 &amp; 3 · version 1.7</p></div>`;
 }
 H.profile = () => {
   const u = me();
@@ -1432,9 +1467,9 @@ H.delCp = el => {
 };
 function QrSheet(id) {
   const s = siteById(id); if (!s) return `${bar('QR labels', '#/admin')}<div class="page">${empty('qr', 'Site not found.')}</div>`;
-  const img = code => { const d = Native?.qrPng ? Native.qrPng(code, 512) : ''; return d ? `<img src="${d}" alt="QR ${esc(code)}">` : `<div class="qr-ph">${esc(code)}</div>`; };
+  const img = code => { const d = Native?.qrPng ? Native.qrPng(code, 512) : webQr(code); return d ? `<img src="${d}" alt="QR ${esc(code)}">` : `<div class="qr-ph">${esc(code)}</div>`; };
   return `${bar('QR labels', '#/admin/site/' + s.id)}<div class="page stack">
-    <p class="muted small no-print">Print, laminate and mount each label at its tour location.${Native?.qrPng ? '' : ' (QR images render in the Android app; this preview shows the code values.)'}</p>
+    <p class="muted small no-print">Print, laminate and mount each label at its tour location.</p>
     <button class="btn-primary btn-block no-print" data-act="print">${ic('print', 'sm')} Print labels</button>
     <div class="qr-grid">${s.checkpoints.map(c => `<div class="qr-card">${img(c.code)}<b>${esc(c.name)}</b><div>${esc(s.name)}</div><div class="code">${esc(c.code)}</div></div>`).join('')}</div></div>`;
 }

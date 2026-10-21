@@ -228,3 +228,10 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--gold);bo
 .sched-next { text-decoration: none; color: inherit; align-items: center; }
 .sched-item.done { opacity: .55; }
 .sched-item .btn-sm { display: inline-flex; width: auto; }
+
+/* iPhone: keep content clear of the notch and the home indicator (installed app / full screen) */
+body{padding-top:env(safe-area-inset-top);padding-bottom:calc(var(--navh) + 14px + env(safe-area-inset-bottom))}
+.nav{height:calc(var(--navh) + env(safe-area-inset-bottom));padding-bottom:env(safe-area-inset-bottom)}
+.modal{padding-top:env(safe-area-inset-top)}
+.install-tip{border-color:rgba(214,182,126,.35)}
+.modal .sheet{padding-bottom:calc(24px + env(safe-area-inset-bottom))}
