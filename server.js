@@ -37,7 +37,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
-const VERSION = '2.3.0';
+const VERSION = '2.4.0';
 const PORT = +process.env.PORT || 8080;
 const DATA_DIR = path.resolve(process.env.DATA_DIR || process.env.RAILWAY_VOLUME_MOUNT_PATH || path.join(__dirname, 'data'));
 const REPORT_DIR = path.join(DATA_DIR, 'reports');
@@ -63,6 +63,7 @@ const OWNER_CODE = (process.env.OWNER_COMPANY_CODE || 'HORSEMAN').toUpperCase();
 const STRIPE_KEY = process.env.STRIPE_SECRET_KEY || '';
 const STRIPE_API = process.env.STRIPE_API_BASE || 'https://api.stripe.com';
 const GRACE_MS = (+process.env.GRACE_DAYS || 15) * 86400000;
+const ANDROID_APK_URL = /^https:\/\//.test(process.env.ANDROID_APK_URL || '') ? process.env.ANDROID_APK_URL : '';
 const TRIAL_DAYS = Math.max(0, Math.min(90, Math.round(process.env.TRIAL_DAYS === undefined || process.env.TRIAL_DAYS === '' ? 14 : +process.env.TRIAL_DAYS || 0)));
 const BILLING_SYNC_MS = (+process.env.BILLING_SYNC_MINUTES || 15) * 60000;
 // Stripe Checkout languages for the website's languages (Haitian Creole and Arabic are not offered by Stripe: French / auto).
@@ -779,7 +780,7 @@ const baseUrl = req => (process.env.PUBLIC_URL || `${(req.headers['x-forwarded-p
 
 const TYPES = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.svg': 'image/svg+xml',
   '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.ico': 'image/x-icon', '.json': 'application/json', '.mp4': 'video/mp4', '.webmanifest': 'application/manifest+json; charset=utf-8', '.txt': 'text/plain; charset=utf-8' };
-const PAGES = { '/': 'index.html', '/signup': 'signup.html', '/signup/success': 'success.html', '/login': 'login.html', '/account': 'account.html', '/client': 'client.html', '/enterprise': 'enterprise.html', '/terms': 'terms.html', '/privacy': 'privacy.html' };
+const PAGES = { '/': 'index.html', '/signup': 'signup.html', '/signup/success': 'success.html', '/login': 'login.html', '/account': 'account.html', '/client': 'client.html', '/enterprise': 'enterprise.html', '/terms': 'terms.html', '/privacy': 'privacy.html', '/download': 'download.html' };
 function sendFile(res, dir, rel, status = 200) {
   const file = path.join(dir, path.normalize('/' + rel).slice(1));
   if (!file.startsWith(dir + path.sep)) return false;
@@ -808,6 +809,8 @@ async function route(req, res) {
   // ----- website and web app -----
   if (req.method === 'GET' && !p.startsWith('/api/')) {
     if (PAGES[p] && sendFile(res, WEB_DIR, PAGES[p])) return;
+    // Android download button: sends phones to the published APK (ANDROID_APK_URL), or back to the install page until there is one.
+    if (p === '/download/android') { res.writeHead(302, { Location: ANDROID_APK_URL || '/download' }); return res.end(); }
     if (p.startsWith('/assets/') && sendFile(res, WEB_DIR, p.slice(8))) return;
     if (p === '/app' && !url.pathname.endsWith('/')) { res.writeHead(302, { Location: '/app/' + url.search }); return res.end(); }
     if (p === '/app' && sendFile(res, APP_DIR, 'index.html')) return;
@@ -818,7 +821,7 @@ async function route(req, res) {
 
   if (req.method === 'GET' && p === '/api/health') return send(res, 200, { ok: true, server: 'guard-patrol', version: VERSION });
   if (req.method === 'GET' && p === '/api/plan') return send(res, 200, { plans: publicPlans(), price: PLANS.starter.price, currency: 'usd', interval: 'month',
-    signupOpen: !!STRIPE_KEY, trialDays: TRIAL_DAYS, graceDays: Math.round(GRACE_MS / 86400000), tourLocationsPerSite: MAX_CHECKPOINTS });
+    signupOpen: !!STRIPE_KEY, trialDays: TRIAL_DAYS, graceDays: Math.round(GRACE_MS / 86400000), tourLocationsPerSite: MAX_CHECKPOINTS, androidApk: !!ANDROID_APK_URL });
   // Enterprise enquiry from the website (more sites or officers than the Business plan). The owner company sees these on its dashboard.
   if (req.method === 'POST' && p === '/api/enterprise') {
     const b = await readJson(req);
