@@ -1235,7 +1235,7 @@ function More() {
       ${isSup() ? row('#', 'download', 'Export data', 'JSON backup of this device', 'exportData') : ''}
       ${row('#', 'logout', 'Sign out', '', 'logout')}
     </div>
-    <p class="note">4 Horseman Security Level 2 &amp; 3 · version 1.7</p></div>`;
+    <p class="note">4 Horseman Security Level 2 &amp; 3 · version 1.7.1</p></div>`;
 }
 H.profile = () => {
   const u = me();
@@ -1268,8 +1268,9 @@ H.exportData = () => {
 };
 H.syncCfg = () => H.serverCfg();
 function History() {
-  const list = db.shifts.filter(s => isSup() || s.userId === me().id).slice().reverse();
-  return `${bar('Shift history', '#/more')}<div class="page"><div class="list">${list.map(s => `<div class="item"><span class="medal ${s.outAt ? '' : 'ok'}">${ic('clock')}</span>
+  // Only the 15 most recent completed shifts (newest first); a shift still in progress is not listed.
+  const list = db.shifts.filter(s => s.outAt && (isSup() || s.userId === me().id)).sort((a, b) => b.outAt - a.outAt).slice(0, 15);
+  return `${bar('Shift history', '#/more')}<div class="page"><p class="muted small" style="margin:0 0 10px">Last 15 completed shifts</p><div class="list">${list.map(s => `<div class="item"><span class="medal ${s.outAt ? '' : 'ok'}">${ic('clock')}</span>
     <div class="grow"><div class="row between"><b>${esc(siteById(s.siteId)?.name || 'Former site')}</b>${s.outAt ? `<span class="pill">${dur(s.outAt - s.inAt)}</span>` : '<span class="pill ok">On duty</span>'}</div>
     <p class="muted small">${isSup() ? esc(userName(s.userId)) + ' · ' : ''}${fmtDT(s.inAt)} → ${s.outAt ? fmtTime(s.outAt) : 'now'} · ${db.scans.filter(x => x.shiftId === s.id).length} scans${s.inFence === 'out' ? ' · <span style="color:var(--warn)">off-site check-in</span>' : ''}</p>
     ${s.notes ? `<p class="small" style="margin-top:4px">${esc(s.notes)}</p>` : ''}</div></div>`).join('') || empty('history', 'No shifts yet.')}</div></div>`;
