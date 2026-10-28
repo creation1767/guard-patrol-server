@@ -400,7 +400,7 @@ function render() {
     case 'tour': html = Tour(); break;
     case 'reports': html = Reports(); break;
     case 'report': html = a === 'new' ? ReportForm(b) : ReportView(a); break;
-    case 'messages': html = a ? Chat(a) : Channels(); break;
+    case 'messages': html = a === 'new' ? DmPicker() : a ? Chat(a) : Channels(); break;
     case 'more': html = More(); break;
     case 'history': html = History(); break;
     case 'schedule': html = MySchedule(); break;
@@ -414,7 +414,7 @@ function render() {
   const tabFor = { checkin: 'home', orders: 'home', report: 'reports', history: 'more', schedule: 'more', board: 'more', admin: 'more' }[p] || p;
   $$('.nav a').forEach(el => el.classList.toggle('on', el.dataset.tab === tabFor));
   updateBadge();
-  if (p === 'messages' && a) afterChat(a);
+  if (p === 'messages' && a && a !== 'new') afterChat(a);
   if (p === 'report' && a === 'new') renderPhotos();
 }
 
@@ -1159,11 +1159,24 @@ H.shareReport = el => {
 H.print = () => { if (Native?.print) Native.print(); else window.print(); };
 
 // ---------- messaging ----------
-function channels() {
+// Private messages: channel "dm:<id>:<id>" with the two user ids sorted, seen only by those two people.
+const dmId = (a, b) => 'dm:' + [a, b].sort().join(':');
+const dmOther = ch => {
+  const p = String(ch).split(':'), u = me();
+  return p.length === 3 && p[0] === 'dm' && u && (p[1] === u.id || p[2] === u.id) ? (p[1] === u.id ? p[2] : p[1]) : null;
+};
+const lastAt = ch => (db.messages.filter(m => m.channel === ch).pop() || {}).at || 0;
+function dmChannels() {
+  return [...new Set(db.messages.filter(m => String(m.channel).startsWith('dm:') && dmOther(m.channel)).map(m => m.channel))]
+    .sort((a, b) => lastAt(b) - lastAt(a))
+    .map(id => ({ id, name: userName(dmOther(id)), desc: 'Private message', dm: true }));
+}
+function groupChannels() {
   return [...(isAdmin() ? [{ id: 'admin', name: 'Report alerts', desc: 'Private to the administrator' }] : []),
   { id: 'dispatch', name: 'Dispatch', desc: 'All officers & supervisors' },
   ...db.sites.map(s => ({ id: 'site:' + s.id, name: s.name, desc: 'Site team' }))];
 }
+function channels() { return [...groupChannels(), ...dmChannels()]; }
 function readChannel(ch) { const u = me(); if (u) (db.reads[u.id] = db.reads[u.id] || {})[ch] = now(); }
 function unread(ch) {
   const u = me(); if (!u) return 0;
@@ -1174,26 +1187,41 @@ function postSystem(channel, text, extra) {
   const m = { id: uid(), channel, from: 'system', fromName: 'System', text, at: now(), system: true, ...(extra || {}) };
   db.messages.push(m); queue('message', m);
 }
-function Channels() {
-  return `${bar('Messages')}<div class="page"><div class="list">${channels().map(c => {
-    const last = db.messages.filter(m => m.channel === c.id).pop(); const n = unread(c.id);
-    return `<a class="item" href="#/messages/${encodeURIComponent(c.id)}"><span class="medal">${ic(c.id === 'admin' ? 'lock' : c.id === 'dispatch' ? 'radio' : 'building')}</span>
-      <div class="grow"><div class="row between"><b>${esc(c.name)}</b><span class="dim small">${last ? ago(last.at) : ''}</span></div>
-      <p class="muted small" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${last ? esc((last.system ? '' : last.fromName + ': ') + last.text) : esc(c.desc)}</p></div>
+function channelRow(c) {
+  const last = db.messages.filter(m => m.channel === c.id).pop(); const n = unread(c.id);
+  const who = !last || last.system ? '' : c.dm ? (last.from === me().id ? '<span>You</span>: ' : '') : esc(last.fromName) + ': ';
+  return `<a class="item" href="#/messages/${encodeURIComponent(c.id)}"><span class="medal">${ic(c.dm ? 'user' : c.id === 'admin' ? 'lock' : c.id === 'dispatch' ? 'radio' : 'building')}</span>
+      <div class="grow"><div class="row between"><b ${c.dm ? 'translate="no"' : ''}>${esc(c.name)}</b><span class="dim small">${last ? ago(last.at) : ''}</span></div>
+      <p class="muted small" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${last ? who + esc(last.text) : esc(c.desc)}</p></div>
       ${n ? `<span class="unread">${n}</span>` : ''}</a>`;
-  }).join('')}</div>
+}
+function Channels() {
+  return `${bar('Messages')}<div class="page"><div class="list">${groupChannels().map(channelRow).join('')}</div>
+  <div class="label" style="margin:22px 2px 10px">Private messages</div>
+  <div class="list"><a class="item" href="#/messages/new"><span class="medal">${ic('plus')}</span><div class="grow"><b>New private message</b><p class="muted small">Only you and the person you choose can see it</p></div><span class="chev">${ic('chev', 'sm')}</span></a>
+  ${dmChannels().map(channelRow).join('')}</div>
   ${db.config.syncUrl ? '' : `<p class="note">Messages are stored on this device. Connect a sync server (More → Sync) to reach other officers' phones.</p>`}</div>`;
 }
+function DmPicker() {
+  const u = me();
+  const role = x => x.role === 'admin' ? 'Administrator' : x.role === 'supervisor' ? 'Supervisor' : 'Officer';
+  const people = db.users.filter(x => x.id !== u.id).sort((a, b) => String(a.name).localeCompare(String(b.name)));
+  return `${bar('New private message', '#/messages')}<div class="page"><div class="list">${people.map(x => `<a class="item" href="#/messages/${encodeURIComponent(dmId(u.id, x.id))}"><span class="medal">${ic('user')}</span>
+    <div class="grow"><b translate="no">${esc(x.name)}</b><p class="muted small">${role(x)}${siteById(x.siteId) ? ` · <span translate="no">${esc(siteById(x.siteId).name)}</span>` : ''}</p></div><span class="chev">${ic('chev', 'sm')}</span></a>`).join('') || empty('users', 'No one else in your company yet.')}</div></div>`;
+}
 function Chat(ch) {
-  const c = channels().find(x => x.id === ch);
+  let c = channels().find(x => x.id === ch);
+  // A new private conversation has no messages yet, so it is not in the list: open it if this person is one of the two.
+  if (!c && dmOther(ch) && db.users.some(x => x.id === dmOther(ch))) c = { id: ch, name: userName(dmOther(ch)), dm: true };
   if (!c) return `${bar('Messages', '#/messages')}<div class="page">${empty('chat', 'Channel not found.')}</div>`;
   const msgs = db.messages.filter(m => m.channel === ch).slice(-200);
   const u = me();
-  return `${bar(c.name, '#/messages')}<div class="chat" id="chat">${msgs.map(m => m.system
+  const canSend = ch !== 'admin' && (!c.dm || db.users.some(x => x.id === dmOther(ch)));
+  return `${bar(c.name, '#/messages')}${c.dm ? `<p class="muted small" style="text-align:center;margin:10px 16px 0">${ic('lock', 'sm')} Private · only the two of you can see these messages</p>` : ''}<div class="chat" id="chat">${msgs.map(m => m.system
     ? (m.reportId ? `<a class="item" href="#/report/${m.reportId}" style="align-self:stretch"><span class="medal">${ic('doc', 'sm')}</span><div class="grow"><p class="small">${esc(m.text)}</p><p class="dim small">${fmtDT(m.at)}</p></div><span class="chev">${ic('chev', 'sm')}</span></a>`
       : `<div class="bubble sys">${esc(m.text)} · ${fmtTime(m.at)}</div>`)
     : `<div class="bubble ${m.from === u.id ? 'me' : ''}">${m.from === u.id ? '' : `<div class="who">${esc(m.fromName)}</div>`}<div>${esc(m.text)}</div><div class="when">${fmtTime(m.at)}</div></div>`).join('') || empty('chat', 'No messages yet.')}</div>
-    ${ch === 'admin' ? '' : `<div class="composer"><div class="chips">${['10-4', 'On my way', 'All secure', 'Need backup', 'Running late', 'On break'].map(q => `<button type="button" data-act="quick" data-text="${q}">${q}</button>`).join('')}</div>
+    ${!canSend ? '' : `<div class="composer"><div class="chips">${['10-4', 'On my way', 'All secure', 'Need backup', 'Running late', 'On break'].map(q => `<button type="button" data-act="quick" data-text="${q}">${q}</button>`).join('')}</div>
     <form data-form="send" data-ch="${esc(ch)}"><input id="msgInput" name="text" autocomplete="off" placeholder="Message ${esc(c.name)}" required><button class="btn-primary" aria-label="Send">${ic('send', 'sm')}</button></form></div>`}`;
 }
 function afterChat(ch) {
@@ -1235,7 +1263,7 @@ function More() {
       ${isSup() ? row('#', 'download', 'Export data', 'JSON backup of this device', 'exportData') : ''}
       ${row('#', 'logout', 'Sign out', '', 'logout')}
     </div>
-    <p class="note">4 Horseman Security Level 2 &amp; 3 · version 1.7.1</p></div>`;
+    <p class="note">4 Horseman Security Level 2 &amp; 3 · version 1.8</p></div>`;
 }
 H.profile = () => {
   const u = me();
