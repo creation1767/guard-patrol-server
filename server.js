@@ -37,7 +37,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
-const VERSION = '2.4.0';
+const VERSION = '2.5.0';
 const PORT = +process.env.PORT || 8080;
 const DATA_DIR = path.resolve(process.env.DATA_DIR || process.env.RAILWAY_VOLUME_MOUNT_PATH || path.join(__dirname, 'data'));
 const REPORT_DIR = path.join(DATA_DIR, 'reports');
@@ -63,6 +63,10 @@ const OWNER_CODE = (process.env.OWNER_COMPANY_CODE || 'HORSEMAN').toUpperCase();
 const STRIPE_KEY = process.env.STRIPE_SECRET_KEY || '';
 const STRIPE_API = process.env.STRIPE_API_BASE || 'https://api.stripe.com';
 const GRACE_MS = (+process.env.GRACE_DAYS || 15) * 86400000;
+// Private messages use the channel "dm:<userId>:<userId>" (the two ids sorted). Only those two people ever receive them;
+// report alerts ("admin") go only to the administrator; every other channel is shared with the whole company.
+const dmPair = ch => { const p = String(ch).split(':'); return p.length === 3 && p[0] === 'dm' && p[1] && p[2] && p[1] < p[2] ? [p[1], p[2]] : null; };
+const canSeeMsg = (m, u) => m.channel === 'admin' ? isAdmin(u) : String(m.channel).startsWith('dm:') ? (dmPair(m.channel) || []).includes(u.id) : true;
 const ANDROID_APK_URL = /^https:\/\//.test(process.env.ANDROID_APK_URL || '') ? process.env.ANDROID_APK_URL : '';
 const TRIAL_DAYS = Math.max(0, Math.min(90, Math.round(process.env.TRIAL_DAYS === undefined || process.env.TRIAL_DAYS === '' ? 14 : +process.env.TRIAL_DAYS || 0)));
 const BILLING_SYNC_MS = (+process.env.BILLING_SYNC_MINUTES || 15) * 60000;
@@ -348,7 +352,11 @@ const H = {
     const channel = str(d.channel, 120);
     const system = !!d.system;
     if (channel === 'admin' && !system) fail(403, 'The report-alert channel is read-only');
-    if (!['admin', 'dispatch'].includes(channel) && !channel.startsWith('site:')) fail(400, 'Unknown channel');
+    if (channel.startsWith('dm:')) {
+      // Private message: only between the two people named in the channel, both still in this company.
+      const pair = dmPair(channel);
+      if (!pair || system || !pair.includes(u.id) || !pair.every(id => C.users.some(x => x.id === id))) fail(403, 'You can only send private messages to people in your company');
+    } else if (!['admin', 'dispatch'].includes(channel) && !channel.startsWith('site:')) fail(400, 'Unknown channel');
     C.messages.push({ id, channel, from: system ? 'system' : u.id, fromName: system ? 'System' : u.name, text: str(d.text, 2000),
       at: num(d.at) || Date.now(), system, reportId: d.reportId ? str(d.reportId, 80) : undefined, srvAt: clock() });
     if (C.messages.length > 20000) C.messages.splice(0, C.messages.length - 20000);
@@ -925,7 +933,7 @@ async function route(req, res) {
       now, me: publicUser(me), company: publicCompany(C),
       users: C.users.map(publicUser),
       sites: C.sites,
-      messages: C.messages.filter(m => m.srvAt > since && (m.channel !== 'admin' || admin)).slice(-1000),
+      messages: C.messages.filter(m => m.srvAt > since && canSeeMsg(m, me)).slice(-1000),
       reports: [...reports.values()].filter(r => r.companyId === C.id && r.updatedAt > since && (sup || r.userId === me.id)),
       shifts: Object.values(C.shifts).filter(s => s.srvAt > since && (sup || s.userId === me.id)).map(({ track, ...s }) => s),
       acks: C.acks[me.id] || {},
