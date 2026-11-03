@@ -37,7 +37,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
-const VERSION = '2.6.0';
+const VERSION = '2.6.1';
 const PORT = +process.env.PORT || 8080;
 const DATA_DIR = path.resolve(process.env.DATA_DIR || process.env.RAILWAY_VOLUME_MOUNT_PATH || path.join(__dirname, 'data'));
 const REPORT_DIR = path.join(DATA_DIR, 'reports');
@@ -435,12 +435,13 @@ function formEncode(obj, prefix, out = []) {
   }
   return out;
 }
-async function stripe(method, p, params) {
+async function stripe(method, p, params, idempotencyKey) {
   if (!STRIPE_KEY) fail(503, 'Online sign-up is not available yet. Please try again later.');
   const q = params ? formEncode(params).join('&') : '';
   const r = await fetch(STRIPE_API + p + (method === 'GET' && q ? `?${q}` : ''), {
     method, body: method === 'GET' ? undefined : q,
-    headers: { Authorization: `Bearer ${STRIPE_KEY}`, 'Content-Type': 'application/x-www-form-urlencoded', 'Stripe-Version': '2024-06-20' }
+    headers: { Authorization: `Bearer ${STRIPE_KEY}`, 'Content-Type': 'application/x-www-form-urlencoded', 'Stripe-Version': '2024-06-20',
+      ...(idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {}) }
   });
   const j = await r.json().catch(() => ({}));
   if (!r.ok) { const e = new HttpError(r.status === 404 ? 404 : 502, j.error?.message || `Payment service error (${r.status})`); e.stripe = j.error; throw e; }
@@ -495,7 +496,7 @@ async function completeSignup(p) {
   C.lang = p.lang || 'en'; C.plan = PLANS[p.plan] ? p.plan : 'starter';
   if (p.ref) C.referredBy = p.ref;
   if (p.trial && !S.trialUsed.includes(p.email.toLowerCase())) S.trialUsed.push(p.email.toLowerCase());
-  // Tell the owner company about every new customer, and who referred them (the referral reward is applied by hand in Stripe).
+  // Tell the owner company about every new customer, and who referred them (referral credits are applied automatically after their first payment).
   const O = S.companies[OWNER_ID];
   if (O && O !== C) O.messages.push({ id: 'm' + crypto.randomUUID(), channel: 'admin', from: 'system', fromName: 'System', system: true, at: Date.now(), srvAt: clock(),
     text: `New company signed up: ${C.name} (${C.code}) · ${PLANS[C.plan]?.name || C.plan} plan${p.trial ? ', free trial' : ''}${p.ref ? ` · referred by ${p.ref}` : ''}` });
@@ -514,7 +515,36 @@ async function refreshBilling(C) {
     return;
   }
   b.dueSince = b.deleteAt = null; save();
-  if (ENDED.includes(sub.status)) deleteCompany(C, `subscription ${sub.status}`);
+  if (ENDED.includes(sub.status)) return deleteCompany(C, `subscription ${sub.status}`);
+  await applyReferralCredit(C, sub);
+}
+// Referral reward: once a referred company pays its first invoice, both companies get a credit worth one month of
+// their own plan on their Stripe customer balance, which Stripe takes off their next invoice. Runs once per referral;
+// Stripe idempotency keys stop a second credit even if the server restarts halfway through.
+async function applyReferralCredit(C, sub) {
+  if (!C.referredBy || C.referralCredit?.done) return;
+  const inv = sub.latest_invoice && typeof sub.latest_invoice === 'object' ? sub.latest_invoice : null;
+  if (sub.status !== 'active' || !inv || inv.status !== 'paid' || !(inv.amount_paid > 0)) return;
+  const rc = C.referralCredit = C.referralCredit || {};
+  const credit = async (X, side, why) => {
+    const amount = limitsOf(X).price;
+    if (!X.billing?.customer || !(amount > 0)) return 0;
+    await stripe('POST', `/v1/customers/${encodeURIComponent(X.billing.customer)}/balance_transactions`,
+      { amount: -amount, currency: 'usd', description: why, metadata: { referral: `${C.referredBy}>${C.code}`, side } }, `referral-${C.id}-${side}`);
+    return amount;
+  };
+  if (rc.referred === undefined) { rc.referred = await credit(C, 'referred', `Referral credit: one free month for joining through ${C.referredBy}`); save(); }
+  if (rc.referrer === undefined) {
+    const R = companyByCode(C.referredBy);
+    const ok = R && !R.owner && R !== C && ['active', 'trialing'].includes(R.billing?.status);
+    rc.referrer = ok ? await credit(R, 'referrer', `Referral credit: one free month for referring ${C.name}`) : 0;
+    rc.referrerCode = C.referredBy; save();
+  }
+  rc.done = Date.now(); save();
+  const $ = c => `$${(c / 100).toFixed(2)}`;
+  const O = S.companies[OWNER_ID];
+  if (O) O.messages.push({ id: 'm' + crypto.randomUUID(), channel: 'admin', from: 'system', fromName: 'System', system: true, at: Date.now(), srvAt: clock(),
+    text: `Referral credits applied in Stripe: ${C.name} (${C.code}) ${rc.referred ? $(rc.referred) : 'none'}, ${rc.referrerCode} ${rc.referrer ? $(rc.referrer) : 'none (no active subscription)'}` });
 }
 let syncing = false;
 async function billingSync() {
