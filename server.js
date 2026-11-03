@@ -37,7 +37,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
-const VERSION = '2.5.0';
+const VERSION = '2.6.0';
 const PORT = +process.env.PORT || 8080;
 const DATA_DIR = path.resolve(process.env.DATA_DIR || process.env.RAILWAY_VOLUME_MOUNT_PATH || path.join(__dirname, 'data'));
 const REPORT_DIR = path.join(DATA_DIR, 'reports');
@@ -493,7 +493,12 @@ async function completeSignup(p) {
   if (p.companyId && S.companies[p.companyId]) return S.companies[p.companyId];
   const C = createCompany({ name: p.companyName, adminName: p.adminName, email: p.email, pinHash: p.pinHash, billing: billingOf(sub) });
   C.lang = p.lang || 'en'; C.plan = PLANS[p.plan] ? p.plan : 'starter';
+  if (p.ref) C.referredBy = p.ref;
   if (p.trial && !S.trialUsed.includes(p.email.toLowerCase())) S.trialUsed.push(p.email.toLowerCase());
+  // Tell the owner company about every new customer, and who referred them (the referral reward is applied by hand in Stripe).
+  const O = S.companies[OWNER_ID];
+  if (O && O !== C) O.messages.push({ id: 'm' + crypto.randomUUID(), channel: 'admin', from: 'system', fromName: 'System', system: true, at: Date.now(), srvAt: clock(),
+    text: `New company signed up: ${C.name} (${C.code}) · ${PLANS[C.plan]?.name || C.plan} plan${p.trial ? ', free trial' : ''}${p.ref ? ` · referred by ${p.ref}` : ''}` });
   p.companyId = C.id; delete p.pinHash; flush();
   return C;
 }
@@ -544,7 +549,7 @@ function dashState(C, me) {
     limits: (L => ({ sites: L.sites, officersPerSite: L.perSite, officers: L.officers, plan: L.plan, planName: L.name }))(limitsOf(C)),
     ...(C.owner ? { inquiries: S.inquiries.slice().reverse(), companies: Object.values(S.companies).filter(x => !x.owner)
       .map(x => ({ code: x.code, name: x.name, ...(L => ({ plan: L.plan, planName: L.name, price: L.price, sites: L.sites, officers: L.officers }))(limitsOf(x)),
-        usage: { sites: x.sites.length, officers: x.users.filter(u => u.role !== 'admin').length }, status: x.billing?.status || 'none' })) } : {})
+        usage: { sites: x.sites.length, officers: x.users.filter(u => u.role !== 'admin').length }, status: x.billing?.status || 'none', referredBy: x.referredBy || '' })) } : {})
   };
 }
 const userIn = (C, id) => C.users.some(u => u.id === id) ? id : fail(400, 'Choose an officer');
@@ -787,8 +792,10 @@ const ip = req => (req.headers['x-forwarded-for'] || '').split(',')[0].trim() ||
 const baseUrl = req => (process.env.PUBLIC_URL || `${(req.headers['x-forwarded-proto'] || 'http').split(',')[0]}://${req.headers['x-forwarded-host'] || req.headers.host}`).replace(/\/+$/, '');
 
 const TYPES = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.svg': 'image/svg+xml',
-  '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.ico': 'image/x-icon', '.json': 'application/json', '.mp4': 'video/mp4', '.webmanifest': 'application/manifest+json; charset=utf-8', '.txt': 'text/plain; charset=utf-8' };
-const PAGES = { '/': 'index.html', '/signup': 'signup.html', '/signup/success': 'success.html', '/login': 'login.html', '/account': 'account.html', '/client': 'client.html', '/enterprise': 'enterprise.html', '/terms': 'terms.html', '/privacy': 'privacy.html', '/download': 'download.html' };
+  '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.ico': 'image/x-icon', '.json': 'application/json', '.mp4': 'video/mp4', '.webmanifest': 'application/manifest+json; charset=utf-8', '.txt': 'text/plain; charset=utf-8', '.xml': 'application/xml; charset=utf-8' };
+const PAGES = { '/': 'index.html', '/signup': 'signup.html', '/signup/success': 'success.html', '/login': 'login.html', '/account': 'account.html', '/client': 'client.html', '/enterprise': 'enterprise.html', '/terms': 'terms.html', '/privacy': 'privacy.html', '/download': 'download.html',
+  '/compare': 'compare.html', '/guides': 'guides.html', '/guides/texas-level-2-vs-level-3': 'guide-texas-license.html', '/guides/guard-tours-without-paper': 'guide-guard-tours.html',
+  '/refer': 'refer.html', '/officers': 'officers.html', '/robots.txt': 'robots.txt', '/sitemap.xml': 'sitemap.xml' };
 function sendFile(res, dir, rel, status = 200) {
   const file = path.join(dir, path.normalize('/' + rel).slice(1));
   if (!file.startsWith(dir + path.sep)) return false;
@@ -863,6 +870,10 @@ async function route(req, res) {
     if (!isPin(pin)) fail(400, 'Choose a PIN of 4–8 digits');
     const plan = PLANS[b.plan] ? b.plan : null;
     if (!plan) fail(400, 'Choose a plan');
+    // Optional referral: the company code of the security company that told them about us.
+    let ref = normCode(str(b.ref, 60));
+    if (ref === code) ref = '';
+    if (ref && !companyByCode(ref)) fail(400, `We couldn't find a company with the code ${ref}. Check the code or leave it blank.`);
     failed(key, 10, 60); // at most 10 checkout attempts per hour from one address
     const price = await monthlyPrice(plan);
     // Free trial: the card is saved now and first charged when the trial ends. One trial per email address.
@@ -873,9 +884,10 @@ async function route(req, res) {
       mode: 'subscription', line_items: [{ price, quantity: 1 }], client_reference_id: id, customer_email: email,
       success_url: `${base}/signup/success?session_id={CHECKOUT_SESSION_ID}`, cancel_url: `${base}/signup?canceled=1`,
       locale: STRIPE_LOCALES[str(b.lang, 8)] || 'auto',
-      metadata: { pending: id, company: companyName, plan }, subscription_data: { metadata: { pending: id, company: companyName, plan }, ...(trial ? { trial_period_days: TRIAL_DAYS } : {}) }
+      metadata: { pending: id, company: companyName, plan, ...(ref ? { referred_by: ref } : {}) },
+      subscription_data: { metadata: { pending: id, company: companyName, plan, ...(ref ? { referred_by: ref } : {}) }, ...(trial ? { trial_period_days: TRIAL_DAYS } : {}) }
     });
-    S.pending[id] = { id, sessionId: cs.id, companyName, adminName, email, pinHash: hashPin(pin), lang: str(b.lang, 8), plan, trial, createdAt: Date.now() };
+    S.pending[id] = { id, sessionId: cs.id, companyName, adminName, email, pinHash: hashPin(pin), lang: str(b.lang, 8), plan, trial, ref, createdAt: Date.now() };
     save();
     return send(res, 200, { url: cs.url, trial });
   }
