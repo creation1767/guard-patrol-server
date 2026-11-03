@@ -204,3 +204,20 @@ footer nav { flex-wrap: wrap; align-items: center; }
 .plan-opt .grow > .small { display: block; margin-top: 3px; }
 .field textarea, .field select { width: 100%; background: #0a0d16; border: 1px solid var(--line2); border-radius: 14px; color: var(--text); font: 16px var(--sans); padding: 14px 16px; outline: none; resize: vertical; }
 .field textarea:focus, .field select:focus { border-color: var(--gold); box-shadow: 0 0 0 4px rgba(214, 182, 126, .12); }
+/* Articles, comparison and referral pages */
+.legal .lead { margin-top: 6px; }
+.legal ul, .legal ol { padding-left: 22px; margin: 10px 0; }
+.legal li + li { margin-top: 6px; }
+.tbl { width: 100%; overflow-x: auto; margin: 18px 0; border: 1px solid var(--line2); border-radius: 14px; }
+.tbl table { width: 100%; border-collapse: collapse; font-size: 15px; min-width: 520px; }
+.tbl th, .tbl td { text-align: left; padding: 12px 14px; border-bottom: 1px solid var(--line2); vertical-align: top; }
+.tbl tr:last-child td { border-bottom: 0; }
+.tbl th { color: var(--muted); font-weight: 500; font-size: 13px; text-transform: uppercase; letter-spacing: .06em; background: var(--panel); }
+.tbl td.us { color: var(--gold-hi); font-weight: 600; }
+.legal .card { margin: 22px 0; }
+.legal .cta-box { text-align: center; margin-top: 40px; }
+.legal .cta-box .btn { margin: 6px; }
+.copy-box { overflow-wrap: anywhere; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 18px; white-space: pre-wrap; font-size: 15px; color: var(--text); }
+.guide-list a { display: block; padding: 18px 0; border-bottom: 1px solid var(--line2); color: var(--text); }
+.guide-list a b { font-family: var(--serif); font-size: 21px; font-weight: 500; display: block; }
+.guide-list a span { color: var(--muted); font-size: 15px; }

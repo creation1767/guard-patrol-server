@@ -39,6 +39,7 @@
       <div class="field"><label for="pin2">Confirm PIN</label><input id="pin2" name="pin2" type="password" inputmode="numeric" maxlength="8" required autocomplete="new-password"></div>
     </div>
     <p class="hint dim small" style="margin-top:8px">4–8 digits. You'll sign in with your company code, badge 1000 and this PIN.</p>
+    <div class="field"><label for="ref">Referred by (optional)</label><input id="ref" name="ref" maxlength="60" autocomplete="off" translate="no" placeholder="Their company code"><p class="hint">If another security company told you about us, enter their company code.</p></div>
     <label class="check"><input type="checkbox" id="agree" required><span>I agree to the <a href="/terms" target="_blank">Terms</a> and <a href="/privacy" target="_blank">Privacy Policy</a>, including automatic monthly payments once the free trial ends, and that our company data is deleted when the subscription ends or a payment is more than 15 days overdue.</span></label>
     <div class="alert err" id="err" hidden></div>
     <div class="form-actions"><button class="btn btn-gold btn-big" id="go">Start my free trial</button>
@@ -61,7 +62,7 @@
 </div></main>
 <footer><div class="wrap">
   <span>© <span data-year></span> 4 Horseman Security</span>
-  <nav><a href="/download">Get the app</a><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="mailto:horseman@4horsemansecurity.com" translate="no">horseman@4horsemansecurity.com</a><a href="/login">Log in</a></nav>
+  <nav><a href="/download">Get the app</a><a href="/guides">Guides</a><a href="/compare">Compare</a><a href="/refer">Refer a company</a><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="mailto:horseman@4horsemansecurity.com" translate="no">horseman@4horsemansecurity.com</a><a href="/login">Log in</a></nav>
 </div></footer>
 <script src="/assets/site.js"></script>
 <script>
@@ -92,6 +93,9 @@
   const cn = HM.$('#companyName'), cp = HM.$('#codePreview');
   const toCode = n => n.toUpperCase().replace(/[^A-Z0-9]/g, '');
   cn.addEventListener('input', () => { cp.textContent = toCode(cn.value) || '—'; });
+  // Referral links (/signup?ref=CODE) fill in the referring company's code.
+  const refQ = toCode(new URLSearchParams(location.search).get('ref') || '');
+  if (refQ) HM.$('#ref').value = refQ;
   f.addEventListener('submit', async e => {
     e.preventDefault(); HM.alertBox(err, '');
     const v = Object.fromEntries(new FormData(f));
@@ -103,7 +107,7 @@
     if (v.pin !== v.pin2) return HM.alertBox(err, 'The two PINs do not match.');
     if (!HM.$('#agree').checked) return HM.alertBox(err, 'Please accept the Terms and Privacy Policy.');
     go.disabled = true; go.textContent = 'Opening secure checkout…';
-    try { const r = await HM.api('POST', '/api/signup', { plan: v.plan, companyName: v.companyName.trim(), adminName: v.adminName.trim(), email: v.email.trim(), pin: v.pin, lang: (window.I18N && I18N.lang) || 'en' }); location.href = r.url; }
+    try { const r = await HM.api('POST', '/api/signup', { plan: v.plan, companyName: v.companyName.trim(), adminName: v.adminName.trim(), email: v.email.trim(), pin: v.pin, ref: toCode(v.ref || ''), lang: (window.I18N && I18N.lang) || 'en' }); location.href = r.url; }
     catch (x) { HM.alertBox(err, x.message); go.disabled = false; go.textContent = HM.t(trial ? 'Start my free trial' : 'Continue to secure payment'); }
   });
 })();
