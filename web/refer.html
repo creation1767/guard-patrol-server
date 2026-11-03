@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Refer a security company, get a free month · 4 Horseman Security</title>
+<meta name="description" content="Refer another security company to 4 Horseman Security. When they pay their first month, both companies get a month free.">
+<link rel="canonical" href="https://www.4horsemansecurity.com/refer">
+<meta property="og:title" content="Refer a security company, get a free month">
+<meta property="og:description" content="Refer another security company to 4 Horseman Security. When they pay their first month, both companies get a month free.">
+<meta property="og:url" content="https://www.4horsemansecurity.com/refer">
+<meta property="og:type" content="website">
+<meta name="theme-color" content="#06080e">
+<link rel="icon" href="/assets/favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Lora:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/styles.css">
+<script src="/assets/i18n.js"></script>
+</head>
+<body>
+<header class="top"><div class="wrap">
+  <a class="brand" href="/"><img src="/assets/logo-mark.svg" alt=""><span><b>4 HORSEMAN</b><small>SECURITY · LEVEL 2 &amp; 3</small></span></a>
+  <nav><a class="link hide-sm" href="/#features">Features</a><a class="link hide-sm" href="/#pricing">Pricing</a><a class="link" href="/login" data-login-link>Log in</a><a class="btn btn-gold btn-sm" href="/signup">Get started</a></nav>
+</div></header>
+<main class="legal">
+
+  <span class="eyebrow">Referrals</span>
+  <h1>Refer a security company. You both get a month free.</h1>
+  <p class="lead muted">Know another guard company that's still on paper logs? Send them your link. When they pay their first month after the free trial, we credit one free month to your company and one to theirs.</p>
+
+  <h2>How it works</h2>
+  <ol>
+    <li>Share your referral link: <b translate="no">4horsemansecurity.com/signup?ref=</b><b class="gold" translate="no">YOURCODE</b>. Replace YOURCODE with your company code, the one your officers use to sign in.</li>
+    <li>Or the other company types your company code in the "Referred by" box when they sign up.</li>
+    <li>When their first monthly payment goes through, we apply a credit equal to one month of each company's plan to your next invoices.</li>
+  </ol>
+
+  <div class="card hl">
+    <h3 style="margin:0 0 10px">Make your referral link</h3>
+    <div class="field"><label for="code">Your company code</label><input id="code" maxlength="60" autocomplete="off" translate="no" placeholder="e.g. LONESTARGUARD"></div>
+    <div class="copy-box" id="link" translate="no">https://www.4horsemansecurity.com/signup?ref=YOURCODE</div>
+    <div class="btn-row" style="margin-top:14px"><button class="btn btn-gold" id="copy" type="button">Copy link</button> <a class="btn btn-ghost" id="mail" href="#">Email it</a></div>
+  </div>
+
+  <h2>The fine print</h2>
+  <ul>
+    <li>One free month for each company per referred company that becomes a paying customer.</li>
+    <li>The credit is applied to future invoices. It has no cash value and can't be transferred.</li>
+    <li>Your company must have an active subscription when the credit is applied.</li>
+    <li>Questions? Email <a href="mailto:horseman@4horsemansecurity.com" translate="no">horseman@4horsemansecurity.com</a>.</li>
+  </ul>
+</main>
+<footer><div class="wrap">
+  <span>© <span data-year></span> 4 Horseman Security</span>
+  <nav><a href="/download">Get the app</a><a href="/guides">Guides</a><a href="/compare">Compare</a><a href="/refer">Refer a company</a><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="mailto:horseman@4horsemansecurity.com" translate="no">horseman@4horsemansecurity.com</a><a href="/login">Log in</a></nav>
+</div></footer>
+<script src="/assets/site.js"></script>
+<script>
+(() => {
+  const code = document.getElementById('code'), link = document.getElementById('link'), mail = document.getElementById('mail');
+  const toCode = v => v.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const url = () => 'https://www.4horsemansecurity.com/signup?ref=' + (toCode(code.value) || 'YOURCODE');
+  const upd = () => {
+    link.textContent = url();
+    mail.href = 'mailto:?subject=' + encodeURIComponent('The app we use for guard tours and reports') + '&body=' + encodeURIComponent('We use 4 Horseman Security for check-ins, QR guard tours, incident reports and scheduling. Sign up with this link and we both get a free month once you start paying:\n\n' + url());
+  };
+  code.addEventListener('input', upd); upd();
+  document.getElementById('copy').addEventListener('click', async e => { try { await navigator.clipboard.writeText(url()); e.target.textContent = 'Copied'; setTimeout(() => e.target.textContent = 'Copy link', 1500); } catch (x) { } });
+})();
+</script>
+</body>
+</html>

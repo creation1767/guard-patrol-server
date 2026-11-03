@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Security officers: show this app to your company · 4 Horseman Security</title>
+<meta name="description" content="Officers: send your security company a quick note about 4 Horseman Security, the app for check-ins, QR guard tours and reports.">
+<link rel="canonical" href="https://www.4horsemansecurity.com/officers">
+<meta property="og:title" content="Security officers: show this app to your company">
+<meta property="og:description" content="Officers: send your security company a quick note about 4 Horseman Security, the app for check-ins, QR guard tours and reports.">
+<meta property="og:url" content="https://www.4horsemansecurity.com/officers">
+<meta property="og:type" content="website">
+<meta name="theme-color" content="#06080e">
+<link rel="icon" href="/assets/favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Lora:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/styles.css">
+<script src="/assets/i18n.js"></script>
+</head>
+<body>
+<header class="top"><div class="wrap">
+  <a class="brand" href="/"><img src="/assets/logo-mark.svg" alt=""><span><b>4 HORSEMAN</b><small>SECURITY · LEVEL 2 &amp; 3</small></span></a>
+  <nav><a class="link hide-sm" href="/#features">Features</a><a class="link hide-sm" href="/#pricing">Pricing</a><a class="link" href="/login" data-login-link>Log in</a><a class="btn btn-gold btn-sm" href="/signup">Get started</a></nav>
+</div></header>
+<main class="legal">
+
+  <span class="eyebrow">For officers</span>
+  <h1>Like the app? Show it to your company.</h1>
+  <p class="lead muted">4 Horseman Security is paid for by the security company, not by officers. If your company still uses paper logs, group texts and phone calls, send your supervisor this note.</p>
+
+  <h2>What changes for you</h2>
+  <ul>
+    <li>Post orders for your site on your phone, always the latest version</li>
+    <li>Scan checkpoints instead of filling in a paper log</li>
+    <li>Write incident reports with photos on post, while it's fresh</li>
+    <li>Message dispatch, your site team or a coworker privately</li>
+    <li>Your location is shared only while you're on shift, never after you check out</li>
+    <li>The app speaks your language: English, Spanish, French, Haitian Creole, Portuguese, Arabic, Russian, German or Filipino</li>
+  </ul>
+
+  <h2>A note you can send</h2>
+  <div class="copy-box" id="note">Hi, I came across 4 Horseman Security, an app for guard companies like ours. Officers check in, scan QR checkpoints on tours and write incident reports with photos from their phones, and the office gets everything right away. It starts at $99 a month for the whole company and has a 14-day free trial: https://www.4horsemansecurity.com</div>
+  <div class="btn-row" style="margin-top:14px"><button class="btn btn-gold" id="copy" type="button">Copy the note</button> <a class="btn btn-ghost" id="sms" href="#">Text it</a> <a class="btn btn-ghost" id="mail" href="#">Email it</a></div>
+</main>
+<footer><div class="wrap">
+  <span>© <span data-year></span> 4 Horseman Security</span>
+  <nav><a href="/download">Get the app</a><a href="/guides">Guides</a><a href="/compare">Compare</a><a href="/refer">Refer a company</a><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="mailto:horseman@4horsemansecurity.com" translate="no">horseman@4horsemansecurity.com</a><a href="/login">Log in</a></nav>
+</div></footer>
+<script src="/assets/site.js"></script>
+<script>
+(() => {
+  const t = document.getElementById('note').textContent;
+  document.getElementById('sms').href = 'sms:?&body=' + encodeURIComponent(t);
+  document.getElementById('mail').href = 'mailto:?subject=' + encodeURIComponent('An app for our guard tours and reports') + '&body=' + encodeURIComponent(t);
+  document.getElementById('copy').addEventListener('click', async e => { try { await navigator.clipboard.writeText(t); e.target.textContent = 'Copied'; setTimeout(() => e.target.textContent = 'Copy the note', 1500); } catch (x) { } });
+})();
+</script>
+</body>
+</html>

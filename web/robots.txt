@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+Disallow: /app/
+Disallow: /account
+Disallow: /client
+Disallow: /signup/success
+Sitemap: https://www.4horsemansecurity.com/sitemap.xml
