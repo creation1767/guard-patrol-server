@@ -1133,5 +1133,22 @@ I18N.add('de', {
 "Private · only the two of you can see these messages": "Privat · nur Sie beide sehen diese Nachrichten",
 "No one else in your company yet.": "Noch niemand sonst in Ihrem Unternehmen.",
 "You": "Sie",
-"You can only send private messages to people in your company": "Private Nachrichten können Sie nur an Personen in Ihrem Unternehmen senden"
+"You can only send private messages to people in your company": "Private Nachrichten können Sie nur an Personen in Ihrem Unternehmen senden",
+"Every patrol, on record.": "Jede Streife, dokumentiert.",
+"Sign in to run your posts, review reports and manage your officers.": "Melden Sie sich an, um Ihre Posten zu steuern, Berichte zu prüfen und Ihr Personal zu verwalten.",
+"Guard tours, incident reports and post orders": "Kontrollgänge, Vorfallberichte und Postenanweisungen",
+"Scheduling, payroll and client billing": "Dienstplanung, Lohnabrechnung und Kundenrechnungen",
+"Works on Android, iPhone and the web": "Läuft auf Android, iPhone und im Web",
+"Security staff": "Sicherheitspersonal",
+"You're already signed in on this tab. <0>Go to your dashboard</0>": "Sie sind in diesem Tab bereits angemeldet. <0>Zum Dashboard</0>",
+"Your company name, as entered at sign-up": "Ihr Firmenname, wie bei der Registrierung angegeben",
+"Show PIN": "PIN anzeigen",
+"Hide PIN": "PIN verbergen",
+"Remember my company code on this device": "Firmencode auf diesem Gerät merken",
+"Forgot your PIN?": "PIN vergessen?",
+"Officers and supervisors: ask your administrator to set a new one for you in the app.": "Wachpersonal und Vorgesetzte: Bitten Sie Ihren Administrator, in der App eine neue PIN festzulegen.",
+"Administrators: email <0>horseman@4horsemansecurity.com</0> from the address on your account and we'll help you back in.": "Administratoren: Schreiben Sie von der Adresse Ihres Kontos an <0>horseman@4horsemansecurity.com</0>, und wir helfen Ihnen weiter.",
+"Encrypted connection": "Verschlüsselte Verbindung",
+"Logging in…": "Anmeldung…",
+"Enter your company code, badge number and PIN.": "Geben Sie Firmencode, Dienstnummer und PIN ein."
 }, ["Signed in as {name} · administrator", "Badge {a} is already in use", "Each site can have up to {a} guard-tour locations", "Each site can have up to {a} officers", "Limit of {a} officer accounts reached", "Limit of {a} sites reached", "The company name \"{a}\" is already taken. Add your city or another word to make it unique.", "{a} is on duty and must check out before changing site", "{a} is on duty and must check out first", "Acknowledged {a} post order(s) for {b}", "All ({a})", "Badge {a} · {b}", "Checked in at {a}", "Checked out from {a}", "Completed tour round {a}", "Could not create the spreadsheet: {a}", "Delete {a}?", "Each site can have up to {a} tour locations", "Good morning, {a}", "Good afternoon, {a}", "Good evening, {a}", "Last scan {a}", "Last scan {a} · issue reported", "Location captured (±{a} m). Tap Save site.", "Location: {a}", "Move this site's {a} officer(s) to another site first", "New ({a})", "Not recorded — {a}", "Occurred: {a}", "Officer: {a}", "On post · {a} m from site centre", "Position {a} · ±{b} m", "Post order updated: \"{a}\". Please review and acknowledge.", "Remove {a}?", "Round {a}", "Round {a} complete", "Server declined a change: {a}", "Severity: {a}", "Since {a}", "Site: {a}", "That checkpoint belongs to {a}", "Up to {a} officers per site. Only the administrator can add or remove officers.", "Welcome, {a}", "of {a} checkpoints", "{a} already has {b} officers", "{a} checked in at {b}", "{a} complete round(s) · current {b}/{c}", "{a} m from post — outside the {b} m perimeter", "{a} new · {b} total", "{a} of {b} accounts used", "{a} of {b} sites · up to {c} tour locations and {d} officers each", "{a} report(s) — {b} incident, {c} daily activity, {d} maintenance & hazard", "{a} round(s) completed this shift", "{a} · since {b}", "{a}h ago", "{a}m ago", "{a}/{b} tour locations · {c}/{d} officers · {e} orders · perimeter not set", "{a}/{b} tour locations · {c}/{d} officers · {e} orders", "{a} order(s) awaiting acknowledgement", "Welcome, {name} · Reports filed by officers at your sites.", "Badge {a} · {b} · {c}", "Badge {a} · {b} · {c} ·", "{a} · {b} · {c} → {d} · {e} scans", "{a} · {b} · {c} → now · {e} scans", "Updated {a}", "{a} · updated {b}", "Client request from {a}: {b}", "Client reply from {a}: {b}", "Welcome to {a}. Your administrator can add sites, guard-tour locations and officers under More.", "Administrator · {a}", "Supervisor · {a}", "Officer · {a}", "{a} of {b} sites · up to {c} tour locations each"]);
