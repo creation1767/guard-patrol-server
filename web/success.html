@@ -27,7 +27,7 @@
     <div class="card hl" style="margin-top:22px;text-align:left">
       <span class="eyebrow">Your company code</span>
       <div class="bigcode gold-text" id="code"></div>
-      <dl class="kv"><dt>Administrator badge</dt><dd id="badge"></dd><dt>PIN</dt><dd>The one you just chose</dd></dl>
+      <dl class="kv"><dt>Website username</dt><dd id="uname" translate="no"></dd><dt>Website password</dt><dd>The one you just chose</dd><dt>App badge</dt><dd id="badge"></dd><dt>App PIN</dt><dd>The one you just chose</dd></dl>
     </div>
     <div class="alert info" style="text-align:left">Write down your company code. You and your officers need it to sign in, and it's always shown on your account page.</div>
     <div class="btn-row" style="justify-content:center"><a class="btn btn-gold" href="/login" id="toLogin">Log in to your account</a><a class="btn btn-ghost" id="toApp" href="/app/">Open the web app</a></div>
@@ -50,7 +50,7 @@
     try {
       const r = await HM.api('GET', '/api/signup/complete?session_id=' + encodeURIComponent(sid));
       if (r.__status === 200) {
-        HM.$('#code').textContent = r.company.code; HM.$('#badge').textContent = r.badge;
+        HM.$('#code').textContent = r.company.code; HM.$('#badge').textContent = r.badge; HM.$('#uname').textContent = r.username || '—';
         HM.$('#who').textContent = r.company.name + (r.adminName ? ' · administrator ' + r.adminName : '');
         HM.$('#toLogin').href = '/login?company=' + encodeURIComponent(r.company.code);
         HM.$('#toApp').href = '/app/?company=' + encodeURIComponent(r.company.code);

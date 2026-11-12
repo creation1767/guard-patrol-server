@@ -34,11 +34,19 @@
     <div class="field"><label for="companyName">Company name</label><input id="companyName" name="companyName" required aria-required="true" maxlength="120" autocomplete="organization"><p class="hint">This is also your company code. You and your officers type it to sign in: <b class="gold" id="codePreview">—</b></p></div>
     <div class="field"><label for="adminName">Your name</label><input id="adminName" name="adminName" required maxlength="120" autocomplete="name"></div>
     <div class="field"><label for="email">Email</label><input id="email" name="email" type="email" required maxlength="200" autocomplete="email"><p class="hint">For receipts and billing from Stripe.</p></div>
+    <h3 class="form-sub">Website sign-in</h3>
+    <div class="field"><label for="username">Choose a username</label><input id="username" name="username" required maxlength="30" autocomplete="username" spellcheck="false" autocapitalize="none"><p class="hint">3–30 letters, numbers, dots, dashes or underscores.</p></div>
+    <div class="row2">
+      <div class="field"><label for="password">Choose a password</label><input id="password" name="password" type="password" required minlength="8" maxlength="100" autocomplete="new-password"></div>
+      <div class="field"><label for="password2">Confirm password</label><input id="password2" name="password2" type="password" required maxlength="100" autocomplete="new-password"></div>
+    </div>
+    <p class="hint dim small" style="margin-top:8px">At least 8 characters, with a letter and a number. You'll sign in to the website with your company code, username and password.</p>
+    <h3 class="form-sub">App sign-in</h3>
     <div class="row2">
       <div class="field"><label for="pin">Choose a PIN</label><input id="pin" name="pin" type="password" inputmode="numeric" pattern="\d{4,8}" maxlength="8" required autocomplete="new-password"></div>
       <div class="field"><label for="pin2">Confirm PIN</label><input id="pin2" name="pin2" type="password" inputmode="numeric" maxlength="8" required autocomplete="new-password"></div>
     </div>
-    <p class="hint dim small" style="margin-top:8px">4–8 digits. You'll sign in with your company code, badge 1000 and this PIN.</p>
+    <p class="hint dim small" style="margin-top:8px">4–8 digits. You'll sign in to the phone app with your company code, badge 1000 and this PIN.</p>
     <div class="field"><label for="ref">Referred by (optional)</label><input id="ref" name="ref" maxlength="60" autocomplete="off" translate="no" placeholder="Their company code"><p class="hint">If another security company told you about us, enter their company code.</p></div>
     <label class="check"><input type="checkbox" id="agree" required><span>I agree to the <a href="/terms" target="_blank">Terms</a> and <a href="/privacy" target="_blank">Privacy Policy</a>, including automatic monthly payments once the free trial ends, and that our company data is deleted when the subscription ends or a payment is more than 15 days overdue.</span></label>
     <div class="alert err" id="err" hidden></div>
@@ -103,11 +111,14 @@
     if (toCode(v.companyName).length < 2) return HM.alertBox(err, 'Your company name must include at least two letters or numbers.');
     if (v.adminName.trim().length < 2) return HM.alertBox(err, 'Enter your name.');
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.email.trim())) return HM.alertBox(err, 'Enter a valid email address.');
+    if (!/^[a-z0-9][a-z0-9._-]{2,29}$/.test(v.username.trim().toLowerCase())) return HM.alertBox(err, HM.t('Choose a username of 3–30 letters, numbers, dots, dashes or underscores.'));
+    if (v.password.length < 8 || !/[A-Za-z]/.test(v.password) || !/\d/.test(v.password)) return HM.alertBox(err, HM.t('Choose a password of at least 8 characters with at least one letter and one number.'));
+    if (v.password !== v.password2) return HM.alertBox(err, HM.t('The two passwords do not match.'));
     if (!/^\d{4,8}$/.test(v.pin)) return HM.alertBox(err, 'Your PIN must be 4–8 digits.');
     if (v.pin !== v.pin2) return HM.alertBox(err, 'The two PINs do not match.');
     if (!HM.$('#agree').checked) return HM.alertBox(err, 'Please accept the Terms and Privacy Policy.');
     go.disabled = true; go.textContent = 'Opening secure checkout…';
-    try { const r = await HM.api('POST', '/api/signup', { plan: v.plan, companyName: v.companyName.trim(), adminName: v.adminName.trim(), email: v.email.trim(), pin: v.pin, ref: toCode(v.ref || ''), lang: (window.I18N && I18N.lang) || 'en' }); location.href = r.url; }
+    try { const r = await HM.api('POST', '/api/signup', { plan: v.plan, companyName: v.companyName.trim(), adminName: v.adminName.trim(), email: v.email.trim(), username: v.username.trim().toLowerCase(), password: v.password, pin: v.pin, ref: toCode(v.ref || ''), lang: (window.I18N && I18N.lang) || 'en' }); location.href = r.url; }
     catch (x) { HM.alertBox(err, x.message); go.disabled = false; go.textContent = HM.t(trial ? 'Start my free trial' : 'Continue to secure payment'); }
   });
 })();

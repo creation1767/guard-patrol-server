@@ -79,6 +79,34 @@
     $('#openApp').href = '/app/?company=' + encodeURIComponent(A.company.code);
     dueBanner();
     go(location.hash.slice(1));
+    // Administrators sign in to the website with a username and password; ask for one if it isn't set yet.
+    if (!A.me.hasPassword) webLogin(true);
+  }
+
+  // Website sign-in (administrator): username + password. The phone app keeps badge + PIN.
+  function webLogin(first) {
+    const has = A.me.hasPassword;
+    modal(`<h2>${esc(T(first ? 'Create your website sign-in' : 'Change website sign-in'))}</h2>
+      <p class="muted small">${esc(T('Administrators sign in to the website with the company code, a username and a password. Your badge number and PIN still work in the phone app.'))}</p>
+      <form id="wl" class="form" novalidate>
+        ${has ? `<div class="field"><label>${esc(T('Current password'))}</label><input name="current" type="password" required maxlength="100" autocomplete="current-password"></div>` : ''}
+        <div class="field"><label>${esc(T('Username'))}</label><input name="username" required maxlength="30" autocomplete="username" spellcheck="false" autocapitalize="none" value="${esc(A.me.username || '')}">
+          <p class="hint">${esc(T('3–30 letters, numbers, dots, dashes or underscores.'))}</p></div>
+        <div class="row2"><div class="field"><label>${esc(T(has ? 'New password' : 'Password'))}</label><input name="password" type="password" required minlength="8" maxlength="100" autocomplete="new-password"></div>
+          <div class="field"><label>${esc(T('Confirm password'))}</label><input name="password2" type="password" required maxlength="100" autocomplete="new-password"></div></div>
+        <p class="hint">${esc(T('At least 8 characters, with a letter and a number.'))}</p>
+        <div class="alert err" hidden></div>
+        <div class="btn-row"><button type="button" class="btn btn-ghost btn-sm" data-close>${esc(T(first ? 'Later' : 'Cancel'))}</button><button class="btn btn-gold btn-sm" id="wlSave">${esc(T('Save'))}</button></div></form>`);
+    const f = $('#wl'), box = $('#wl .alert');
+    f.onsubmit = guard($('#wlSave'), async () => {
+      const u = f.username.value.trim().toLowerCase(), pw = f.password.value;
+      if (!/^[a-z0-9][a-z0-9._-]{2,29}$/.test(u)) return HM.alertBox(box, T('Choose a username of 3–30 letters, numbers, dots, dashes or underscores.'));
+      if (pw.length < 8 || !/[A-Za-z]/.test(pw) || !/\d/.test(pw)) return HM.alertBox(box, T('Choose a password of at least 8 characters with at least one letter and one number.'));
+      if (pw !== f.password2.value) return HM.alertBox(box, T('The two passwords do not match.'));
+      await api('POST', '/api/account/login', { username: u, password: pw, current: has ? f.current.value : undefined });
+      A = await api('GET', '/api/account');
+      closeModal(); toast(T('Website sign-in saved')); if (tab === 'settings') settings();
+    });
   }
   function go(name) {
     tab = TABS[name] ? name : 'overview';
@@ -742,11 +770,15 @@
           <div id="langSlot"></div>
           <h3 style="margin-top:30px">${esc(T('Company account'))}</h3>
           <dl class="kv"><dt>${esc(T('Company code'))}</dt><dd translate="no">${esc(A.company.code)}</dd><dt>${esc(T('Account email'))}</dt><dd translate="no">${esc(A.company.email || '—')}</dd><dt>${esc(T('Created'))}</dt><dd>${fDate(A.company.createdAt)}</dd></dl>
+          <h3 style="margin-top:30px">${esc(T('Website sign-in'))}</h3>
+          <dl class="kv"><dt>${esc(T('Username'))}</dt><dd translate="no">${esc(A.me.username || T('Not set up yet'))}</dd><dt>${esc(T('Password'))}</dt><dd>${A.me.hasPassword ? '••••••••' : esc(T('Not set up yet'))}</dd></dl>
+          <div class="btn-row"><button type="button" class="btn btn-ghost btn-sm" id="wlEdit">${esc(T(A.me.hasPassword ? 'Change username or password' : 'Create username and password'))}</button></div>
         </section>
         ${D.inquiries ? enterpriseCard() : ''}
       </div>`;
     if (window.I18N) $('#langSlot').appendChild(I18N.picker('lang-select big'));
     if (D.inquiries) enterpriseWire();
+    $('#wlEdit').onclick = () => webLogin(false);
     const f = $('#bp');
     f.onsubmit = guard($('#bpSave'), async () => {
       await act('profile', { name: f.name.value, address: f.address.value, phone: f.phone.value, email: f.email.value, payTo: f.payTo.value, terms: +f.terms.value, taxPct: +f.taxPct.value }, T('Saved'));

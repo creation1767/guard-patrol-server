@@ -37,7 +37,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
-const VERSION = '2.6.1';
+const VERSION = '2.7.0';
 const PORT = +process.env.PORT || 8080;
 const DATA_DIR = path.resolve(process.env.DATA_DIR || process.env.RAILWAY_VOLUME_MOUNT_PATH || path.join(__dirname, 'data'));
 const REPORT_DIR = path.join(DATA_DIR, 'reports');
@@ -85,7 +85,20 @@ const geo = g => (g && num(g.lat) != null && num(g.lng) != null)
   ? { lat: g.lat, lng: g.lng, acc: num(g.acc) || 0, at: num(g.at) || Date.now() } : null;
 const sha = s => crypto.createHash('sha256').update(s).digest('hex');
 const isPin = p => typeof p === 'string' && /^\d{4,8}$/.test(p);
+// Website sign-in for administrators: a username (unique within the company) and a password. The app keeps badge + PIN.
+const normUser = s => str(s, 40).trim().toLowerCase();
+const isUsername = u => /^[a-z0-9][a-z0-9._-]{2,29}$/.test(u);
+const isPassword = p => typeof p === 'string' && p.length >= 8 && p.length <= 100 && /[A-Za-z]/.test(p) && /\d/.test(p);
+const USERNAME_RULE = 'Choose a username of 3–30 letters, numbers, dots, dashes or underscores';
+const PASSWORD_RULE = 'Choose a password of at least 8 characters with at least one letter and one number';
 const isEmail = e => typeof e === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e) && e.length <= 200;
+function newSession(C, u) {
+  const token = crypto.randomBytes(32).toString('base64url');
+  for (const [k, s] of Object.entries(S.sessions)) if (s.exp < Date.now()) delete S.sessions[k];
+  S.sessions[sha(token)] = { userId: u.id, companyId: C.id, exp: Date.now() + SESSION_MS, at: Date.now() };
+  save();
+  return { token, user: publicUser(u), company: publicCompany(C) };
+}
 function hashPin(pin) {
   const salt = crypto.randomBytes(16).toString('hex');
   return `${salt}:${crypto.scryptSync(pin, salt, 32).toString('hex')}`;
@@ -228,11 +241,11 @@ function codeFromName(name) {
   if (!companyByCode(base)) return base;
   for (let i = 2; ; i++) if (!companyByCode(base + i)) return base + i;
 }
-function createCompany({ name, adminName, email, pinHash, billing }) {
+function createCompany({ name, adminName, email, pinHash, username, pwHash, billing }) {
   const id = 'c' + crypto.randomUUID().replace(/-/g, '').slice(0, 16);
   const C = emptyCompany(id, str(name, 120) || 'Security company', codeFromName(name));
   C.email = str(email, 200); C.billing = billing || null;
-  C.users.push({ id: 'u_admin', name: str(adminName, 120) || 'Administrator', badge: '1000', role: 'admin', phone: '', pinHash, srvAt: clock() });
+  C.users.push({ id: 'u_admin', name: str(adminName, 120) || 'Administrator', badge: '1000', role: 'admin', phone: '', pinHash, ...(username && pwHash ? { username, pwHash } : {}), srvAt: clock() });
   C.messages.push({ id: 'm' + crypto.randomUUID(), channel: 'dispatch', from: 'system', fromName: 'System', system: true, at: Date.now(), srvAt: clock(),
     text: `Welcome to ${C.name}. Your administrator can add sites, guard-tour locations and officers under More.` });
   S.companies[id] = C; flush();
@@ -492,7 +505,7 @@ async function completeSignup(p) {
   const sub = typeof cs.subscription === 'string' ? await stripe('GET', `/v1/subscriptions/${cs.subscription}`) : cs.subscription;
   if (!['active', 'trialing'].includes(sub.status)) return null;
   if (p.companyId && S.companies[p.companyId]) return S.companies[p.companyId];
-  const C = createCompany({ name: p.companyName, adminName: p.adminName, email: p.email, pinHash: p.pinHash, billing: billingOf(sub) });
+  const C = createCompany({ name: p.companyName, adminName: p.adminName, email: p.email, pinHash: p.pinHash, username: p.username, pwHash: p.pwHash, billing: billingOf(sub) });
   C.lang = p.lang || 'en'; C.plan = PLANS[p.plan] ? p.plan : 'starter';
   if (p.ref) C.referredBy = p.ref;
   if (p.trial && !S.trialUsed.includes(p.email.toLowerCase())) S.trialUsed.push(p.email.toLowerCase());
@@ -500,7 +513,7 @@ async function completeSignup(p) {
   const O = S.companies[OWNER_ID];
   if (O && O !== C) O.messages.push({ id: 'm' + crypto.randomUUID(), channel: 'admin', from: 'system', fromName: 'System', system: true, at: Date.now(), srvAt: clock(),
     text: `New company signed up: ${C.name} (${C.code}) · ${PLANS[C.plan]?.name || C.plan} plan${p.trial ? ', free trial' : ''}${p.ref ? ` · referred by ${p.ref}` : ''}` });
-  p.companyId = C.id; delete p.pinHash; flush();
+  p.companyId = C.id; delete p.pinHash; delete p.pwHash; flush();
   return C;
 }
 async function refreshBilling(C) {
@@ -891,12 +904,15 @@ async function route(req, res) {
     const b = await readJson(req);
     const key = `signup|${ip(req)}`; throttle(key);
     const companyName = str(b.companyName, 120).trim(), adminName = str(b.adminName, 120).trim(), email = str(b.email, 200).trim(), pin = str(b.pin, 20);
+    const username = normUser(b.username), password = str(b.password, 100);
     if (companyName.length < 2) fail(400, 'Enter your company name');
     const code = normCode(companyName);
     if (code.length < 2) fail(400, 'Your company name must include at least two letters or numbers');
     if (codeTaken(code)) fail(409, `The company name "${companyName}" is already taken. Add your city or another word to make it unique.`);
     if (adminName.length < 2) fail(400, 'Enter your name');
     if (!isEmail(email)) fail(400, 'Enter a valid email address');
+    if (!isUsername(username)) fail(400, USERNAME_RULE);
+    if (!isPassword(password)) fail(400, PASSWORD_RULE);
     if (!isPin(pin)) fail(400, 'Choose a PIN of 4–8 digits');
     const plan = PLANS[b.plan] ? b.plan : null;
     if (!plan) fail(400, 'Choose a plan');
@@ -917,7 +933,7 @@ async function route(req, res) {
       metadata: { pending: id, company: companyName, plan, ...(ref ? { referred_by: ref } : {}) },
       subscription_data: { metadata: { pending: id, company: companyName, plan, ...(ref ? { referred_by: ref } : {}) }, ...(trial ? { trial_period_days: TRIAL_DAYS } : {}) }
     });
-    S.pending[id] = { id, sessionId: cs.id, companyName, adminName, email, pinHash: hashPin(pin), lang: str(b.lang, 8), plan, trial, ref, createdAt: Date.now() };
+    S.pending[id] = { id, sessionId: cs.id, companyName, adminName, email, pinHash: hashPin(pin), username, pwHash: hashPin(password), lang: str(b.lang, 8), plan, trial, ref, createdAt: Date.now() };
     save();
     return send(res, 200, { url: cs.url, trial });
   }
@@ -927,7 +943,8 @@ async function route(req, res) {
     if (!pend) fail(404, 'We could not find this sign-up. If you were charged, contact support.');
     const C = await completeSignup(pend);
     if (!C) return send(res, 202, { pending: true });
-    return send(res, 200, { company: publicCompany(C), badge: C.users.find(u => u.role === 'admin')?.badge || '1000', adminName: C.users.find(u => u.role === 'admin')?.name });
+    const adm = C.users.find(u => u.role === 'admin');
+    return send(res, 200, { company: publicCompany(C), badge: adm?.badge || '1000', adminName: adm?.name, username: adm?.username || '' });
   }
 
 
@@ -943,11 +960,22 @@ async function route(req, res) {
     const u = C && C.users.find(x => x.badge === badge);
     if (!u || !checkPin(pin, u.pinHash)) { failed(key); fail(401, C ? 'Badge or PIN not recognised' : 'Company code not recognised'); }
     attempts.delete(key);
-    const token = crypto.randomBytes(32).toString('base64url');
-    for (const [k, s] of Object.entries(S.sessions)) if (s.exp < Date.now()) delete S.sessions[k];
-    S.sessions[sha(token)] = { userId: u.id, companyId: C.id, exp: Date.now() + SESSION_MS, at: Date.now() };
-    save();
-    return send(res, 200, { token, user: publicUser(u), users: C.users.map(publicUser), company: publicCompany(C) });
+    // On the website, an administrator who has a username and password must use them. Until they set one up,
+    // badge + PIN still works once so they can create it (the dashboard asks them to straight away).
+    if (b.web && isAdmin(u) && u.pwHash) fail(403, 'Administrators sign in to the website with their username and password.');
+    return send(res, 200, { ...newSession(C, u), users: C.users.map(publicUser), setupWebLogin: !!(b.web && isAdmin(u) && !u.pwHash) });
+  }
+  // Website sign-in for administrators: company code + username + password.
+  if (req.method === 'POST' && p === '/api/web-login') {
+    const b = await readJson(req);
+    const code = normCode(b.company), username = normUser(b.username), password = str(b.password, 100);
+    const key = `web|${ip(req)}|${code}|${username}`;
+    throttle(key);
+    const C = code && companyByCode(code);
+    const u = C && username && C.users.find(x => isAdmin(x) && x.username === username);
+    if (!u || !checkPin(password, u.pwHash)) { failed(key); fail(401, C ? 'Username or password not recognised' : 'Company code not recognised'); }
+    attempts.delete(key);
+    return send(res, 200, newSession(C, u));
   }
 
   const auth = authUser(req);
@@ -1011,12 +1039,28 @@ async function route(req, res) {
     if (req.method === 'GET' && p === '/api/account') {
       try { await refreshBilling(C); } catch (e) { }
       if (!S.companies[C.id]) fail(410, 'This subscription has ended and the company account was removed.');
-      return send(res, 200, { company: { ...publicCompany(C), createdAt: C.createdAt, email: C.email || '' }, me: publicUser(me),
+      return send(res, 200, { company: { ...publicCompany(C), createdAt: C.createdAt, email: C.email || '' }, me: { ...publicUser(me), username: me.username || '', hasPassword: !!me.pwHash },
         billing: C.owner ? { status: 'owner' } : C.billing ? { status: C.billing.status, periodEnd: C.billing.periodEnd, cancelAtPeriodEnd: C.billing.cancelAtPeriodEnd, trialEnd: C.billing.trialEnd || null,
           overdue: OVERDUE(C.billing), dueSince: C.billing.dueSince, deleteAt: C.billing.deleteAt, payUrl: C.billing.payUrl } : { status: 'none' },
         graceDays: Math.round(GRACE_MS / 86400000),
         price: limitsOf(C).price, plan: limitsOf(C), plans: publicPlans(),
         usage: { sites: C.sites.length, maxSites: limitsOf(C).sites, officers: C.users.filter(x => x.role !== 'admin').length, maxOfficers: limitsOf(C).officers } });
+    }
+    // Create or change the administrator's website username and password.
+    if (req.method === 'POST' && p === '/api/account/login') {
+      const b = await readJson(req);
+      const username = normUser(b.username), password = str(b.password, 100);
+      if (me.pwHash) {
+        const key = `pw|${ip(req)}|${C.id}`; throttle(key);
+        if (!checkPin(str(b.current, 100), me.pwHash)) { failed(key); fail(403, 'Your current password is not correct'); }
+        attempts.delete(key);
+      }
+      if (!isUsername(username)) fail(400, USERNAME_RULE);
+      if (!isPassword(password)) fail(400, PASSWORD_RULE);
+      if (C.users.some(x => x.id !== me.id && x.username === username)) fail(409, 'That username is already taken');
+      me.username = username; me.pwHash = hashPin(password); me.srvAt = clock();
+      revokeSessions(C, me.id, tokenHash); save();
+      return send(res, 200, { ok: true, username });
     }
     if (C.owner || !C.billing?.subscription) fail(400, 'This company has no subscription to manage');
     if (req.method === 'POST' && (p === '/api/account/cancel' || p === '/api/account/resume')) {
