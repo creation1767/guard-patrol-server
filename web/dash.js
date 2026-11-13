@@ -790,8 +790,8 @@
   function enterpriseCard() {
     const q = D.inquiries, cs = D.companies || [];
     return `<section class="card wide-card"><h3>${esc(T('Enterprise'))}</h3>
-      <p class="muted small" style="margin:8px 0 14px">${esc(T('Enquiries sent from the Enterprise page of the website. Agree a price with the customer, ask them to sign up on any plan, then set their company to Enterprise below.'))}</p>
-      ${q.length ? `<ul class="list">${q.map(x => `<li><div><b translate="no">${esc(x.company)}</b> <span class="muted small" translate="no">· ${esc(x.name)} · <a href="mailto:${esc(x.email)}">${esc(x.email)}</a>${x.phone ? ' · ' + esc(x.phone) : ''}</span>
+      <p class="muted small" style="margin:8px 0 14px">${esc(T('Demo requests and Enterprise enquiries sent from the website. For a demo, contact them to book a walkthrough. For Enterprise, agree a price, ask them to sign up on any plan, then set their company to Enterprise below.'))}</p>
+      ${q.length ? `<ul class="list">${q.map(x => `<li><div>${x.kind === 'demo' ? pill(T('Demo request'), 'warn') + ' ' : ''}<b translate="no">${esc(x.company)}</b> <span class="muted small" translate="no">· ${esc(x.name)} · <a href="mailto:${esc(x.email)}">${esc(x.email)}</a>${x.phone ? ' · ' + esc(x.phone) : ''}</span>
         <div class="dim small">${fDate(x.at)} · ${esc(T('{s} sites, {o} officers', { s: x.sites || '?', o: x.officers || '?' }))}</div>${x.message ? `<div class="small" translate="no" style="margin-top:4px">${esc(x.message)}</div>` : ''}</div>
         <select class="inq" data-id="${esc(x.id)}" aria-label="${esc(T('Status'))}">${Object.entries(ST).map(([k, v]) => opt(k, T(v[0]), x.status === k)).join('')}</select></li>`).join('')}</ul>` : empty(T('No enquiries yet'))}
       <h3 style="margin-top:26px">${esc(T('Customer plans'))}</h3>

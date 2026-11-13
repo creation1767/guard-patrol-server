@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Free demo · 4 Horseman Security</title>
+<meta name="description" content="See 4 Horseman Security run your guard posts in a free 15-minute demo: GPS check-in, QR guard tours, incident reports, scheduling, payroll and a client portal.">
+<meta name="theme-color" content="#06080e">
+<link rel="icon" href="/assets/favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Lora:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/styles.css">
+<script src="/assets/i18n.js"></script>
+<script src="/assets/pixel.js"></script>
+</head>
+<body>
+<header class="top"><div class="wrap">
+  <a class="brand" href="/"><img src="/assets/logo-mark.svg" alt=""><span><b>4 HORSEMAN</b><small>SECURITY · LEVEL 2 &amp; 3</small></span></a>
+  <nav><a class="link hide-sm" href="/#features">Features</a><a class="link hide-sm" href="/#pricing">Pricing</a><a class="link" href="/login" data-login-link>Log in</a><a class="btn btn-gold btn-sm" href="/signup">Get started</a></nav>
+</div></header>
+<main class="auth"><div class="auth-grid">
+  <form class="card panel demo-form" id="f" novalidate>
+    <span class="eyebrow">Free 15-minute demo</span>
+    <h1>See 4 Horseman run your posts</h1>
+    <p class="muted small">Tell us about your company and we'll reach out to set up a quick walkthrough at a time that suits you. No card and no commitment.</p>
+    <div class="row2">
+      <div class="field"><label for="company">Company name</label><input id="company" name="company" required maxlength="160" autocomplete="organization"></div>
+      <div class="field"><label for="name">Your name</label><input id="name" name="name" required maxlength="120" autocomplete="name"></div>
+    </div>
+    <div class="row2">
+      <div class="field"><label for="email">Email</label><input id="email" name="email" type="email" required maxlength="200" autocomplete="email"></div>
+      <div class="field"><label for="phone">Phone (optional)</label><input id="phone" name="phone" type="tel" maxlength="40" autocomplete="tel"></div>
+    </div>
+    <div class="row2">
+      <div class="field"><label for="officers">Number of officers</label><input id="officers" name="officers" type="number" min="1" max="100000" inputmode="numeric"></div>
+      <div class="field"><label for="message">Best time to call (optional)</label><input id="message" name="message" maxlength="200"></div>
+    </div>
+    <div class="alert err" id="err" hidden></div>
+    <div class="alert ok" id="done" hidden>Thank you. We received your request and will contact you shortly to set up your demo.</div>
+    <div class="form-actions"><button class="btn btn-gold btn-big" id="go">Request my free demo</button></div>
+    <p class="muted small" style="margin-top:16px">Rather try it yourself? <a href="/signup">Start your 14-day free trial</a></p>
+  </form>
+  <aside class="card hl summary panel">
+    <span class="eyebrow">What you'll see</span>
+    <video class="demo-video" src="/assets/ad.mp4" poster="/assets/ad-poster.webp" width="540" height="960" muted loop playsinline autoplay preload="metadata"
+      aria-label="26-second tour of the 4 Horseman app: check-in, QR guard tours, reports to the administrator and the live operations board"></video>
+    <div class="line"><span class="muted">Officer app</span><span>GPS check-in, QR guard tours</span></div>
+    <div class="line"><span class="muted">Reports</span><span>Incident reports with photos</span></div>
+    <div class="line"><span class="muted">Office tools</span><span>Scheduling, payroll, billing, client portal</span></div>
+    <div class="line"><span class="muted">Apps</span><span>Android, iPhone + web</span></div>
+    <div class="line total"><span>Plans from</span><span><span data-plan-price="starter">$99</span> / mo</span></div>
+    <p class="dim small" style="margin-top:14px">Built by a U.S. Army combat veteran, for the companies that protect us.</p>
+  </aside>
+</div></main>
+<footer><div class="wrap">
+  <span>© <span data-year></span> 4 Horseman Security</span>
+  <nav><a href="/download">Get the app</a><a href="/guides">Guides</a><a href="/compare">Compare</a><a href="/refer">Refer a company</a><a href="https://www.facebook.com/profile.php?id=61596018436073" target="_blank" rel="noopener">Facebook</a><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="mailto:horseman@4horsemansecurity.com" translate="no">horseman@4horsemansecurity.com</a><a href="/login">Log in</a></nav>
+</div></footer>
+<script src="/assets/site.js"></script>
+<script>
+(() => {
+  const f = HM.$('#f'), err = HM.$('#err'), go = HM.$('#go');
+  f.addEventListener('submit', async e => {
+    e.preventDefault(); HM.alertBox(err, '');
+    const v = Object.fromEntries(new FormData(f));
+    if (v.company.trim().length < 2) { HM.$('#company').focus(); return HM.alertBox(err, HM.t('Enter your company name.')); }
+    if (v.name.trim().length < 2) { HM.$('#name').focus(); return HM.alertBox(err, HM.t('Enter your name.')); }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.email.trim())) { HM.$('#email').focus(); return HM.alertBox(err, HM.t('Enter a valid email address.')); }
+    go.disabled = true;
+    try {
+      await HM.api('POST', '/api/demo', v);
+      f.querySelectorAll('input').forEach(i => i.disabled = true); go.hidden = true; HM.$('#done').hidden = false;
+      window.hmTrack && hmTrack('Lead', { content_name: 'demo' });
+    } catch (x) { HM.alertBox(err, x.message); go.disabled = false; }
+  });
+})();
+</script>
+</body>
+</html>

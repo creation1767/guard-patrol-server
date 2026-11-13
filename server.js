@@ -836,7 +836,7 @@ const baseUrl = req => (process.env.PUBLIC_URL || `${(req.headers['x-forwarded-p
 
 const TYPES = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.svg': 'image/svg+xml',
   '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.ico': 'image/x-icon', '.json': 'application/json', '.mp4': 'video/mp4', '.webmanifest': 'application/manifest+json; charset=utf-8', '.txt': 'text/plain; charset=utf-8', '.xml': 'application/xml; charset=utf-8' };
-const PAGES = { '/': 'index.html', '/signup': 'signup.html', '/signup/success': 'success.html', '/login': 'login.html', '/account': 'account.html', '/client': 'client.html', '/enterprise': 'enterprise.html', '/terms': 'terms.html', '/privacy': 'privacy.html', '/download': 'download.html',
+const PAGES = { '/': 'index.html', '/signup': 'signup.html', '/signup/success': 'success.html', '/login': 'login.html', '/account': 'account.html', '/client': 'client.html', '/enterprise': 'enterprise.html', '/demo': 'demo.html', '/terms': 'terms.html', '/privacy': 'privacy.html', '/download': 'download.html',
   '/compare': 'compare.html', '/guides': 'guides.html', '/guides/texas-level-2-vs-level-3': 'guide-texas-license.html', '/guides/guard-tours-without-paper': 'guide-guard-tours.html',
   '/refer': 'refer.html', '/officers': 'officers.html', '/robots.txt': 'robots.txt', '/sitemap.xml': 'sitemap.xml' };
 function sendFile(res, dir, rel, status = 200) {
@@ -881,7 +881,9 @@ async function route(req, res) {
   if (req.method === 'GET' && p === '/api/plan') return send(res, 200, { plans: publicPlans(), price: PLANS.starter.price, currency: 'usd', interval: 'month',
     signupOpen: !!STRIPE_KEY, trialDays: TRIAL_DAYS, graceDays: Math.round(GRACE_MS / 86400000), tourLocationsPerSite: MAX_CHECKPOINTS, androidApk: !!ANDROID_APK_URL });
   // Enterprise enquiry from the website (more sites or officers than the Business plan). The owner company sees these on its dashboard.
-  if (req.method === 'POST' && p === '/api/enterprise') {
+  // A demo request from /demo (the Facebook ad landing page) is stored the same way, marked kind: 'demo'.
+  if (req.method === 'POST' && (p === '/api/enterprise' || p === '/api/demo')) {
+    const demo = p === '/api/demo';
     const b = await readJson(req);
     const key = `ent|${ip(req)}`; throttle(key);
     const v = { company: str(b.company, 160).trim(), name: str(b.name, 120).trim(), email: str(b.email, 200).trim(), phone: str(b.phone, 40).trim(),
@@ -890,11 +892,11 @@ async function route(req, res) {
     if (v.name.length < 2) fail(400, 'Enter your name');
     if (!isEmail(v.email)) fail(400, 'Enter a valid email address');
     failed(key, 5, 60);
-    S.inquiries.push({ id: newId('eq'), ...v, at: Date.now(), status: 'new' });
+    S.inquiries.push({ id: newId('eq'), ...v, kind: demo ? 'demo' : 'enterprise', at: Date.now(), status: 'new' });
     if (S.inquiries.length > 500) S.inquiries.splice(0, S.inquiries.length - 500);
     const O = S.companies[OWNER_ID];
     if (O) O.messages.push({ id: 'm' + crypto.randomUUID(), channel: 'admin', from: 'system', fromName: 'System', system: true, at: Date.now(), srvAt: clock(),
-      text: `Enterprise enquiry: ${v.company} — ${v.name}, ${v.email}${v.phone ? ', ' + v.phone : ''} · ${v.sites || '?'} sites, ${v.officers || '?'} officers` });
+      text: `${demo ? 'Demo request' : 'Enterprise enquiry'}: ${v.company} — ${v.name}, ${v.email}${v.phone ? ', ' + v.phone : ''} · ${v.sites || '?'} sites, ${v.officers || '?'} officers${v.message && demo ? ' · ' + v.message : ''}` });
     save();
     return send(res, 200, { ok: true });
   }

@@ -192,6 +192,9 @@ footer a { color: var(--muted); }
 .summary .line { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--line2); font-size: 15px; }
 .summary .line:last-of-type { border: 0; }
 .summary .total { font-weight: 600; }
+.demo-video { display: block; width: 100%; max-width: 260px; height: auto; margin: 14px auto 10px; border-radius: 14px; border: 1px solid var(--line2); background: #000; }
+.summary .line > span:last-child { text-align: right; padding-left: 12px; }
+@media (max-width: 560px) { .demo-form .row2 { grid-template-columns: 1fr; gap: 0; } }
 
 .bigcode { font: 500 clamp(26px, 6vw, 44px)/1.15 var(--serif); letter-spacing: .16em; margin: 10px 0; overflow-wrap: anywhere; }
 .kv { display: grid; grid-template-columns: auto 1fr; gap: 10px 18px; font-size: 15px; margin-top: 16px; }
