@@ -11,6 +11,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Lora:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/assets/styles.css">
 <script src="/assets/i18n.js"></script>
+<script src="/assets/pixel.js"></script>
 </head>
 <body>
 <header class="top"><div class="wrap">
@@ -59,6 +60,7 @@
         HM.$('#who').textContent = r.company.name + (r.adminName ? ' · administrator ' + r.adminName : '');
         HM.$('#toLogin').href = '/login?company=' + encodeURIComponent(r.company.code);
         HM.$('#toApp').href = '/app/?company=' + encodeURIComponent(r.company.code);
+        try { const k = 'hm_px_' + sid; if (!sessionStorage.getItem(k)) { sessionStorage.setItem(k, '1'); window.hmTrack && hmTrack('StartTrial', { currency: 'USD', value: 0 }); window.hmTrack && hmTrack('CompleteRegistration', { status: 'trial' }); } } catch (e) { }
         return show('done');
       }
     } catch (e) { show('fail'); HM.alertBox(HM.$('#ferr'), e.message); return; }

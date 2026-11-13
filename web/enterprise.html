@@ -11,6 +11,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Lora:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/assets/styles.css">
 <script src="/assets/i18n.js"></script>
+<script src="/assets/pixel.js"></script>
 </head>
 <body>
 <header class="top"><div class="wrap">
@@ -67,7 +68,7 @@
     if (v.name.trim().length < 2) return HM.alertBox(err, 'Enter your name.');
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.email.trim())) return HM.alertBox(err, 'Enter a valid email address.');
     go.disabled = true;
-    try { await HM.api('POST', '/api/enterprise', v); f.querySelectorAll('input,textarea').forEach(i => i.disabled = true); go.hidden = true; HM.$('#done').hidden = false; }
+    try { await HM.api('POST', '/api/enterprise', v); f.querySelectorAll('input,textarea').forEach(i => i.disabled = true); go.hidden = true; HM.$('#done').hidden = false; window.hmTrack && hmTrack('Lead', { content_name: 'enterprise' }); }
     catch (x) { HM.alertBox(err, x.message); go.disabled = false; }
   });
 })();

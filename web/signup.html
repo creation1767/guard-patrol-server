@@ -11,6 +11,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Lora:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/assets/styles.css">
 <script src="/assets/i18n.js"></script>
+<script src="/assets/pixel.js"></script>
 </head>
 <body>
 <header class="top"><div class="wrap">
@@ -118,7 +119,7 @@
     if (v.pin !== v.pin2) return HM.alertBox(err, 'The two PINs do not match.');
     if (!HM.$('#agree').checked) return HM.alertBox(err, 'Please accept the Terms and Privacy Policy.');
     go.disabled = true; go.textContent = 'Opening secure checkout…';
-    try { const r = await HM.api('POST', '/api/signup', { plan: v.plan, companyName: v.companyName.trim(), adminName: v.adminName.trim(), email: v.email.trim(), username: v.username.trim().toLowerCase(), password: v.password, pin: v.pin, ref: toCode(v.ref || ''), lang: (window.I18N && I18N.lang) || 'en' }); location.href = r.url; }
+    try { const r = await HM.api('POST', '/api/signup', { plan: v.plan, companyName: v.companyName.trim(), adminName: v.adminName.trim(), email: v.email.trim(), username: v.username.trim().toLowerCase(), password: v.password, pin: v.pin, ref: toCode(v.ref || ''), lang: (window.I18N && I18N.lang) || 'en' }); window.hmTrack && hmTrack('InitiateCheckout', { content_name: v.plan, currency: 'USD', value: ({ starter: 99, pro: 199, business: 349 })[v.plan] || 0 }); setTimeout(() => { location.href = r.url; }, 250); }
     catch (x) { HM.alertBox(err, x.message); go.disabled = false; go.textContent = HM.t(trial ? 'Start my free trial' : 'Continue to secure payment'); }
   });
 })();
