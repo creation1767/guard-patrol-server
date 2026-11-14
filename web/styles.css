@@ -277,3 +277,16 @@ footer nav { flex-wrap: wrap; align-items: center; }
 /* Hindi: letter-spacing pulls Devanagari conjuncts apart, so it is turned off (the Latin wordmark keeps its tracking). */
 html[lang="hi"] * { letter-spacing: 0 !important; }
 html[lang="hi"] .brand b { letter-spacing: .22em !important; }
+/* Narrow phones: keep the wordmark and the header links from colliding in longer languages (es, fr, de, fil, ru…). */
+@media (max-width: 480px) {
+  .top .wrap { gap: 10px; }
+  .brand { gap: 8px; min-width: 0; flex-shrink: 1; }
+  .brand b { font-size: 15px; letter-spacing: .12em; }
+  .brand img { width: 26px; }
+  .top nav { gap: 10px; flex-shrink: 0; }
+  .top nav a.link { font-size: 14px; }
+  .top .btn-sm { padding: 8px 12px; font-size: 13.5px; }
+}
+@media (max-width: 374px) { .brand b { font-size: 13px; letter-spacing: .06em; } }
+.top.tight nav a.link { display: none; }
+.top.tighter .brand b { display: none; }

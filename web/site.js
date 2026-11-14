@@ -27,6 +27,26 @@
       const foot = $('footer nav'); if (foot) foot.appendChild(I18N.picker('lang-select foot-lang'));
     }
     const y = $('[data-year]'); if (y) y.textContent = new Date().getFullYear();
+    fitHeader();
   });
+  // Header fit on narrow phones: in longer languages the wordmark can run into the header links.
+  // First drop the plain text links (Log in stays in the footer), then, if still tight, the wordmark text.
+  function fitHeader() {
+    const top = $('header.top'), brand = top && $('.brand b', top), nav = top && $('nav', top);
+    if (!brand || !nav) return;
+    const clash = () => {
+      const rg = document.createRange(); rg.selectNodeContents(brand); const b = rg.getBoundingClientRect(), n = nav.getBoundingClientRect();
+      return document.dir === 'rtl' ? b.left < n.right + 8 : b.right > n.left - 8;
+    };
+    let busy = false;
+    const run = () => {
+      if (busy) return; busy = true;
+      top.classList.remove('tight', 'tighter');
+      if (clash()) { top.classList.add('tight'); if (clash()) top.classList.add('tighter'); }
+      requestAnimationFrame(() => { busy = false; });
+    };
+    run(); addEventListener('resize', run); addEventListener('load', run);
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(run);
+  }
   window.HM = { $, esc, api, store, money, date, alertBox, t: tr };
 })();
