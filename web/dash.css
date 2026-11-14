@@ -186,3 +186,5 @@ table.sched td.tot small { font-size: 10.5px; overflow-wrap: anywhere; }
 .plan-opt.off { opacity: .55; cursor: not-allowed; }
 .wide-card { grid-column: 1 / -1; }
 .list select.inq { width: auto; min-width: 130px; background: #0a0d16; color: var(--text); border: 1px solid var(--line2); border-radius: 10px; padding: 7px 10px; font: inherit; font-size: 14px; }
+html[lang="hi"] * { letter-spacing: 0 !important; }
+html[lang="hi"] .brand b { letter-spacing: .22em !important; }

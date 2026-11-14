@@ -9,9 +9,9 @@
 (function () {
   'use strict';
   var LANGS = [['en', 'English'], ['es', 'Español'], ['fr', 'Français'], ['ht', 'Kreyòl ayisyen'], ['pt', 'Português'],
-    ['ar', 'العربية'], ['ru', 'Русский'], ['de', 'Deutsch'], ['fil', 'Filipino']];
+    ['ar', 'العربية'], ['ru', 'Русский'], ['de', 'Deutsch'], ['fil', 'Filipino'], ['hi', 'हिन्दी']];
   // Date and number formats. Haitian Creole uses French formats; Arabic keeps Western digits for times and amounts.
-  var LOCALES = { en: 'en-US', es: 'es-US', fr: 'fr-FR', ht: 'fr-HT', pt: 'pt-BR', ar: 'ar-u-nu-latn', ru: 'ru-RU', de: 'de-DE', fil: 'fil-PH' };
+  var LOCALES = { en: 'en-US', es: 'es-US', fr: 'fr-FR', ht: 'fr-HT', pt: 'pt-BR', ar: 'ar-u-nu-latn', ru: 'ru-RU', de: 'de-DE', fil: 'fil-PH', hi: 'hi-IN' };
   var KEY = 'hm_lang', codes = LANGS.map(function (l) { return l[0]; });
   function stored() { try { return localStorage.getItem(KEY); } catch (e) { return null; } }
   function pick() {

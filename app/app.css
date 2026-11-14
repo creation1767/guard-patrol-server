@@ -235,3 +235,6 @@ body{padding-top:env(safe-area-inset-top);padding-bottom:calc(var(--navh) + 14px
 .modal{padding-top:env(safe-area-inset-top)}
 .install-tip{border-color:rgba(214,182,126,.35)}
 .modal .sheet{padding-bottom:calc(24px + env(safe-area-inset-bottom))}
+/* Hindi: letter-spacing pulls Devanagari conjuncts apart, so it is turned off (the Latin wordmark keeps its tracking). */
+html[lang="hi"] * { letter-spacing: 0 !important; }
+html[lang="hi"] .wordmark { letter-spacing: .28em !important; }

@@ -71,7 +71,7 @@ const ANDROID_APK_URL = /^https:\/\//.test(process.env.ANDROID_APK_URL || '') ? 
 const TRIAL_DAYS = Math.max(0, Math.min(90, Math.round(process.env.TRIAL_DAYS === undefined || process.env.TRIAL_DAYS === '' ? 14 : +process.env.TRIAL_DAYS || 0)));
 const BILLING_SYNC_MS = (+process.env.BILLING_SYNC_MINUTES || 15) * 60000;
 // Stripe Checkout languages for the website's languages (Haitian Creole and Arabic are not offered by Stripe: French / auto).
-const STRIPE_LOCALES = { en: 'en', es: 'es', fr: 'fr', ht: 'fr', pt: 'pt-BR', ar: 'auto', ru: 'ru', de: 'de', fil: 'fil' };
+const STRIPE_LOCALES = { en: 'en', es: 'es', fr: 'fr', ht: 'fr', pt: 'pt-BR', ar: 'auto', ru: 'ru', de: 'de', fil: 'fil', hi: 'auto' };
 const ALLOWED_ORIGINS = ['https://appassets.androidplatform.net', 'horseman://app'].concat((process.env.ALLOWED_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean));
 
 // ---------- helpers ----------

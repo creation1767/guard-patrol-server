@@ -274,3 +274,6 @@ footer nav { flex-wrap: wrap; align-items: center; }
 .guide-list a { display: block; padding: 18px 0; border-bottom: 1px solid var(--line2); color: var(--text); }
 .guide-list a b { font-family: var(--serif); font-size: 21px; font-weight: 500; display: block; }
 .guide-list a span { color: var(--muted); font-size: 15px; }
+/* Hindi: letter-spacing pulls Devanagari conjuncts apart, so it is turned off (the Latin wordmark keeps its tracking). */
+html[lang="hi"] * { letter-spacing: 0 !important; }
+html[lang="hi"] .brand b { letter-spacing: .22em !important; }
