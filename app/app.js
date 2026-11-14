@@ -1,5 +1,5 @@
 'use strict';
-/* 4 Horseman Security Level 2 & 3 — offline-first guard app.
+/* 4 Horseman Security — offline-first guard app.
    Data lives on the device (localStorage) and is optionally pushed to a server (see README → Sync API).
    Roles: admin (manages officers & locations), supervisor (operations board, all reports), guard (officer). */
 
@@ -448,7 +448,7 @@ function Login() {
   return `<div class="login">
     ${logo('logo-hero', 'lh')}
     <h1>4 Horseman</h1>
-    <p class="tag">Security · Level 2 &amp; 3</p>
+    <p class="tag">Security · Guard management</p>
     <form data-form="login">
       ${srv ? `<div class="field"><label for="company">Company code</label><input id="company" name="company" required autocapitalize="characters" autocomplete="organization" spellcheck="false" style="text-transform:uppercase;letter-spacing:.14em" value="${esc(urlCompany() || db.config.companyCode || '')}" placeholder="From your administrator"></div>` : ''}
       <div class="field"><label for="badge">Badge number</label><input id="badge" name="badge" inputmode="numeric" required autocomplete="username"></div>
@@ -541,7 +541,7 @@ function Home() {
   const tile = (href, icon, title, sub, count, act) =>
     `<a class="tile" href="${href}" ${act ? `data-act="${act}"` : ''}><span class="medal">${ic(icon)}</span><b>${title}${sub ? `<small>${sub}</small>` : ''}</b>${count ? `<span class="count">${count}</span>` : ''}</a>`;
   return `<div class="page">
-    <div class="brandbar">${logo('logo-sm', 'ls')}<div class="grow"><div class="wordmark">4 Horseman</div><div class="label" style="font-size:10px;letter-spacing:.18em;margin-top:3px;white-space:nowrap">Security · Level 2 &amp; 3</div></div>
+    <div class="brandbar">${logo('logo-sm', 'ls')}<div class="grow"><div class="wordmark">4 Horseman</div><div class="label" style="font-size:10px;letter-spacing:.18em;margin-top:3px;white-space:nowrap">Security · Guard management</div></div>
       <span class="pill gold">${roleName(u.role)} · ${esc(u.badge)}</span></div>
     <div class="greet"><p class="eyebrow">${new Date().toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' })}</p>
       <h1>${greeting()}, ${esc(u.name.split(' ')[0])}</h1></div>
@@ -1271,7 +1271,7 @@ function More() {
       ${isSup() ? row('#', 'download', 'Export data', 'JSON backup of this device', 'exportData') : ''}
       ${row('#', 'logout', 'Sign out', '', 'logout')}
     </div>
-    <p class="note">4 Horseman Security Level 2 &amp; 3 · version 1.8</p></div>`;
+    <p class="note">4 Horseman Security · version 1.8</p></div>`;
 }
 H.profile = () => {
   const u = me();

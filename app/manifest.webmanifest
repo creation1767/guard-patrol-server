@@ -1,7 +1,7 @@
 {
   "name": "4 Horseman Security",
   "short_name": "4 Horseman",
-  "description": "Check-ins, post orders, QR guard tours and reports for Level 2 & 3 security officers.",
+  "description": "Check-ins, post orders, QR guard tours and reports for armed and unarmed security officers.",
   "id": "/app/",
   "start_url": "/app/",
   "scope": "/app/",
