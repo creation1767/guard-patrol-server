@@ -1240,7 +1240,6 @@ H.send = (f, fd) => { const t = String(fd.get('text')).trim(); if (t) sendMsg(f.
 H.quick = el => sendMsg($('form[data-form=send]').dataset.ch, el.dataset.text);
 
 // ---------- more / profile / history ----------
-const FACEBOOK_URL = 'https://www.facebook.com/profile.php?id=61596018436073';
 const INSTAGRAM_URL = 'https://www.instagram.com/4horsemansecurity/';
 function More() {
   const u = me();
@@ -1264,7 +1263,6 @@ function More() {
       ${row('#/admin/officers', 'users', 'Security officers', `${officerCount()} of ${MAX_OFFICERS} accounts used`)}
       ${row('#/admin', 'building', 'Sites & guard-tour locations', MAX_PER_SITE >= MAX_OFFICERS ? `${db.sites.length} of ${MAX_SITES} sites · up to ${MAX_CHECKPOINTS} tour locations each` : `${db.sites.length} of ${MAX_SITES} sites · up to ${MAX_CHECKPOINTS} tour locations and ${MAX_PER_SITE} officers each`)}</div>` : ''}
     <div class="list" style="margin-top:12px">
-      <a class="item" href="${FACEBOOK_URL}" target="_blank" rel="noopener"><span class="medal">${ic('fb')}</span><div class="grow"><b>Follow us on Facebook</b><p class="muted small">News, tips and shout-outs for officers</p></div><span class="chev">${ic('chev', 'sm')}</span></a>
       <a class="item" href="${INSTAGRAM_URL}" target="_blank" rel="noopener"><span class="medal">${ic('ig')}</span><div class="grow"><b>Follow us on Instagram</b><p class="muted small">Reels and tips for officers and owners</p></div><span class="chev">${ic('chev', 'sm')}</span></a>
     </div>
     <div class="list" style="margin-top:12px">

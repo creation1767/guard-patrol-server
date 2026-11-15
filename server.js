@@ -881,7 +881,7 @@ async function route(req, res) {
   if (req.method === 'GET' && p === '/api/plan') return send(res, 200, { plans: publicPlans(), price: PLANS.starter.price, currency: 'usd', interval: 'month',
     signupOpen: !!STRIPE_KEY, trialDays: TRIAL_DAYS, graceDays: Math.round(GRACE_MS / 86400000), tourLocationsPerSite: MAX_CHECKPOINTS, androidApk: !!ANDROID_APK_URL });
   // Enterprise enquiry from the website (more sites or officers than the Business plan). The owner company sees these on its dashboard.
-  // A demo request from /demo (the Facebook ad landing page) is stored the same way, marked kind: 'demo'.
+  // A demo request from /demo (the ad landing page) is stored the same way, marked kind: 'demo'.
   if (req.method === 'POST' && (p === '/api/enterprise' || p === '/api/demo')) {
     const demo = p === '/api/demo';
     const b = await readJson(req);
