@@ -844,7 +844,7 @@ function sendFile(res, dir, rel, status = 200) {
   if (!file.startsWith(dir + path.sep)) return false;
   let data; try { data = fs.readFileSync(file); } catch (e) { return false; }
   const ext = path.extname(file).toLowerCase();
-  const head = { 'Content-Type': TYPES[ext] || 'application/octet-stream', 'Cache-Control': ext === '.html' || ext === '.js' || ext === '.css' ? 'no-cache' : 'public, max-age=86400', 'Accept-Ranges': 'bytes', ...SECURITY_HEADERS };
+  const head = { 'Content-Type': TYPES[ext] || 'application/octet-stream', 'Cache-Control': ext === '.html' || ext === '.js' || ext === '.css' ? 'no-cache' : 'public, max-age=86400', 'Accept-Ranges': 'bytes', ...SECURITY_HEADERS, ...(rel.startsWith('flyers/') ? { 'Access-Control-Allow-Origin': '*' } : {}) };
   // Byte ranges: Safari and iPhones only play video when the server answers range requests.
   const m = status === 200 && /^bytes=(\d*)-(\d*)$/.exec(res.req?.headers.range || '');
   if (m && (m[1] || m[2])) {
