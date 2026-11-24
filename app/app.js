@@ -615,6 +615,7 @@ document.addEventListener('change', e => { if (e.target.name === 'siteId' && $('
 H.checkin = async (f, fd) => {
   const site = checkinSites().find(s => s.id === fd.get('siteId'));
   if (!site) return toast('You can only check in at your assigned site', 'err');
+  if (db.config.paused) return toast("Your company's free trial has ended. Your administrator needs to add a card on the website to turn the account back on.", 'err');
   const geo = lastGeo || await getGeo();
   const g = geofence(site, geo);
   if (g.state === 'out' && !String(fd.get('offsiteReason') || '').trim()) { $('#offsiteWrap').hidden = false; toast('Enter a reason for the off-site check-in', 'err'); return; }
@@ -1604,6 +1605,7 @@ async function sync() {
     mergeUsers(st.users || db.users);
     if (!me()) { toast('Your account was removed by the administrator', 'err'); doLogout(); return; }
     if (Array.isArray(st.sites)) db.sites = st.sites;
+    if (typeof st.paused === 'boolean' && st.paused !== !!c.paused) { c.paused = st.paused; schedChanged = true; }
     for (const m of st.messages || []) if (!db.messages.some(x => x.id === m.id)) { db.messages.push(m); if (m.from !== me().id) fresh++; }
     for (const x of st.reports || []) {
       const cur = db.reports.find(y => y.id === x.id);

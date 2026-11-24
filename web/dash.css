@@ -124,6 +124,7 @@ table.sched td:hover .add, table.sched td .add:focus { border-color: var(--line)
 .due-banner { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px; padding: 16px 20px; margin-bottom: 22px; border-radius: 16px;
   background: rgba(239, 111, 108, .1); border: 1px solid rgba(239, 111, 108, .4); color: #ffd9d7; }
 .due-banner p { margin-top: 4px; font-size: 14px; }
+.due-banner.trial-banner { background: rgba(214, 182, 126, .1); border-color: rgba(214, 182, 126, .45); color: #f3e3bf; }
 
 /* modal & toast */
 .modal-back { position: fixed; inset: 0; z-index: 50; background: rgba(3, 4, 8, .72); backdrop-filter: blur(4px); display: grid; place-items: center; padding: 20px; overflow-y: auto; }

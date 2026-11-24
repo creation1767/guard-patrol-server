@@ -20,7 +20,7 @@
 </div></header>
 <main class="auth"><div class="card panel center" style="max-width:560px">
   <img src="/assets/logo-mark.svg" alt="" style="width:76px;margin:0 auto 10px">
-  <div id="wait"><span class="eyebrow">Confirming payment</span><div class="spinner"></div><p class="muted">Setting up your company… this takes a few seconds.</p></div>
+  <div id="wait"><span class="eyebrow">Almost there</span><div class="spinner"></div><p class="muted">Setting up your company… this takes a few seconds.</p></div>
   <div id="done" hidden>
     <span class="eyebrow">You're all set</span>
     <h1 style="font-size:34px;margin:12px 0 6px">Welcome to 4 Horseman</h1>
@@ -49,18 +49,18 @@
 <script src="/assets/site.js"></script>
 <script>
 (async () => {
-  const sid = new URLSearchParams(location.search).get('session_id');
+  const qs = new URLSearchParams(location.search), sid = qs.get('session_id'), ref = qs.get('ref');
   const show = id => ['wait', 'done', 'fail'].forEach(x => HM.$('#' + x).hidden = x !== id);
-  if (!sid) { show('fail'); HM.alertBox(HM.$('#ferr'), 'This page needs a sign-up reference. If you were charged, your company is created automatically within a few minutes.'); return; }
+  if (!sid && !ref) { show('fail'); HM.alertBox(HM.$('#ferr'), 'This page needs a sign-up reference. If you were charged, your company is created automatically within a few minutes.'); return; }
   for (let i = 0; i < 12; i++) {
     try {
-      const r = await HM.api('GET', '/api/signup/complete?session_id=' + encodeURIComponent(sid));
+      const r = await HM.api('GET', '/api/signup/complete?' + (ref ? 'ref=' + encodeURIComponent(ref) : 'session_id=' + encodeURIComponent(sid)));
       if (r.__status === 200) {
         HM.$('#code').textContent = r.company.code; HM.$('#badge').textContent = r.badge; HM.$('#uname').textContent = r.username || '—';
         HM.$('#who').textContent = r.company.name + (r.adminName ? ' · administrator ' + r.adminName : '');
         HM.$('#toLogin').href = '/login?company=' + encodeURIComponent(r.company.code);
         HM.$('#toApp').href = '/app/?company=' + encodeURIComponent(r.company.code);
-        try { const k = 'hm_px_' + sid; if (!sessionStorage.getItem(k)) { sessionStorage.setItem(k, '1'); window.hmTrack && hmTrack('StartTrial', { currency: 'USD', value: 0 }); window.hmTrack && hmTrack('CompleteRegistration', { status: 'trial' }); } } catch (e) { }
+        try { const k = 'hm_px_' + (sid || ref); if (!sessionStorage.getItem(k)) { sessionStorage.setItem(k, '1'); window.hmTrack && hmTrack('StartTrial', { currency: 'USD', value: 0 }); window.hmTrack && hmTrack('CompleteRegistration', { status: 'trial' }); } } catch (e) { }
         return show('done');
       }
     } catch (e) { show('fail'); HM.alertBox(HM.$('#ferr'), e.message); return; }

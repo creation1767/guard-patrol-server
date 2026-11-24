@@ -70,6 +70,14 @@
   if (!store.get()) return location.replace('/login');
   $('#logout').onclick = async () => { try { await api('POST', '/api/logout'); } catch (e) { } store.set(null); location.href = '/'; };
   async function load() {
+    // Back from adding a card on Stripe: attach it to the subscription before loading the account.
+    const cardSession = new URLSearchParams(location.search).get('card_session');
+    let cardMsg = '';
+    if (cardSession) {
+      history.replaceState(null, '', location.pathname + location.hash);
+      try { await api('POST', '/api/account/card-done', { sessionId: cardSession }); cardMsg = T('Card added. Thank you!'); }
+      catch (e) { if ([401, 403].includes(e.status)) { store.set(null); return location.replace('/login'); } cardMsg = e.message; }
+    }
     try { [A, D] = await Promise.all([api('GET', '/api/account'), api('GET', '/api/dash')]); }
     catch (e) {
       if ([401, 403, 410].includes(e.status)) { store.set(null); return location.replace('/login'); }
@@ -81,7 +89,10 @@
     go(location.hash.slice(1));
     // Administrators sign in to the website with a username and password; ask for one if it isn't set yet.
     if (!A.me.hasPassword) webLogin(true);
+    if (cardMsg) toast(cardMsg, cardMsg === T('Card added. Thank you!') ? 'ok' : 'err');
   }
+  // Opens Stripe's secure page to add a card; it returns to /account?card_session=… when done.
+  async function addCard() { const r = await api('POST', '/api/account/card'); location.href = r.url; }
 
   // Website sign-in (administrator): username + password. The phone app keeps badge + PIN.
   function webLogin(first) {
@@ -120,11 +131,27 @@
   // Overdue subscription: shown above every tab.
   function dueBanner() {
     const b = A.billing, el = $('#due');
+    const days = t => Math.max(0, Math.ceil((t - Date.now()) / DAY));
+    if (b && b.status === 'paused') {
+      el.hidden = false;
+      el.innerHTML = `<div class="due-banner"><div><b>${esc(T('Your free trial has ended'))}</b>
+        <p>${esc(T("Add a card by {date} to turn your account back on. If you don't, the account and all of its data will be permanently deleted ({n} days left).", { date: fDate(b.deleteAt), n: days(b.deleteAt) }))}</p></div>
+        <button class="btn btn-gold btn-sm" id="payNow">${esc(T('Add a card'))}</button></div>`;
+      $('#payNow').onclick = guard($('#payNow'), addCard);
+      return;
+    }
+    if (b && b.status === 'trialing' && !b.hasCard && b.trialEnd) {
+      el.hidden = false;
+      el.innerHTML = `<div class="due-banner trial-banner"><div><b>${esc(T('{n} days left in your free trial', { n: days(b.trialEnd) }))}</b>
+        <p>${esc(T("Add a card to keep your account running after {date}. You won't be charged before then.", { date: fDate(b.trialEnd) }))}</p></div>
+        <button class="btn btn-gold btn-sm" id="payNow">${esc(T('Add a card'))}</button></div>`;
+      $('#payNow').onclick = guard($('#payNow'), addCard);
+      return;
+    }
     if (!b || !b.overdue) { el.hidden = true; return; }
-    const days = Math.max(0, Math.ceil((b.deleteAt - Date.now()) / DAY));
     el.hidden = false;
     el.innerHTML = `<div class="due-banner"><div><b>${esc(T('Your monthly payment is overdue'))}</b>
-      <p>${esc(T('Pay by {date} or your company account and all of its data will be permanently deleted ({n} days left).', { date: fDate(b.deleteAt), n: days }))}</p></div>
+      <p>${esc(T('Pay by {date} or your company account and all of its data will be permanently deleted ({n} days left).', { date: fDate(b.deleteAt), n: days(b.deleteAt) }))}</p></div>
       <button class="btn btn-gold btn-sm" id="payNow">${esc(T('Pay now'))}</button></div>`;
     $('#payNow').onclick = guard($('#payNow'), async () => {
       if (b.payUrl) { location.href = b.payUrl; return; }
@@ -144,11 +171,11 @@
     const b = A.billing;
     const statusRow = () => {
       if (b.status === 'owner') return `<dl class="kv"><dt>${esc(T('Billing'))}</dt><dd>${esc(T('Not billed (owner company)'))}</dd></dl>`;
-      const labels = { active: ['Active', 'ok'], trialing: ['Free trial', 'ok'], past_due: ['Payment overdue', 'bad'], unpaid: ['Payment overdue', 'bad'], canceled: ['Ended', 'bad'], incomplete: ['Incomplete', 'warn'] };
+      const labels = { active: ['Active', 'ok'], trialing: ['Free trial', 'ok'], paused: ['Trial ended', 'bad'], past_due: ['Payment overdue', 'bad'], unpaid: ['Payment overdue', 'bad'], canceled: ['Ended', 'bad'], incomplete: ['Incomplete', 'warn'] };
       const [lt, lc] = b.cancelAtPeriodEnd ? ['Cancelling', 'warn'] : labels[b.status] || [b.status, ''];
       return `<div class="row-between"><div><div class="plan-name">${esc(T('{name} plan', { name: T(A.plan?.name || 'Company plan') }))}</div><div class="price small-price">${money(A.price)} <small>${esc(T('/ month'))}</small></div></div>${pill(T(lt), lc)}</div>
-        ${b.trialEnd && !b.cancelAtPeriodEnd ? `<div class="alert info" style="margin:12px 0 0">${esc(T('Free trial until {date}. Your first payment of {price} is taken then. Cancel before then and you pay nothing.', { date: fDate(b.trialEnd), price: money(A.price) }))}</div>` : ''}
-        <dl class="kv">${b.cancelAtPeriodEnd ? `<dt>${esc(T('Access ends'))}</dt><dd>${fDate(b.periodEnd)}</dd>` : `<dt>${esc(T('Next payment'))}</dt><dd>${fDate(b.periodEnd)}</dd>`}
+        ${b.trialEnd && !b.cancelAtPeriodEnd ? `<div class="alert info" style="margin:12px 0 0">${esc(b.hasCard ? T('Free trial until {date}. Your first payment of {price} is taken then. Cancel before then and you pay nothing.', { date: fDate(b.trialEnd), price: money(A.price) }) : T("Free trial until {date}. Add a card before then to keep your account running. You won't be charged until the trial ends.", { date: fDate(b.trialEnd) }))}</div>` : ''}
+        <dl class="kv">${b.cancelAtPeriodEnd ? `<dt>${esc(T('Access ends'))}</dt><dd>${fDate(b.periodEnd)}</dd>` : b.status === 'trialing' && !b.hasCard ? `<dt>${esc(T('Trial ends'))}</dt><dd>${fDate(b.trialEnd || b.periodEnd)}</dd>` : `<dt>${esc(T('Next payment'))}</dt><dd>${fDate(b.periodEnd)}</dd>`}
         ${b.overdue ? `<dt>${esc(T('Deleted if unpaid on'))}</dt><dd class="bad-text">${fDate(b.deleteAt)}</dd>` : ''}</dl>
         <p class="dim small" style="margin-top:12px">${esc(T('Charged automatically every month. If a payment fails you have {n} days to pay before the account and its data are deleted.', { n: A.graceDays || 15 }))}</p>
         <div class="btn-row" id="billbtns"></div>`;
@@ -186,9 +213,10 @@
   function billingButtons() {
     const b = A.billing, box = $('#billbtns');
     const btn = (label, cls, fn) => { const x = document.createElement('button'); x.className = 'btn btn-sm ' + cls; x.textContent = T(label); x.onclick = guard(x, fn); box.appendChild(x); };
+    if (!b.hasCard || b.status === 'paused') btn('Add a card', 'btn-gold', addCard);
     if (b.overdue && b.payUrl) btn('Pay now', 'btn-gold', async () => { location.href = b.payUrl; });
     if (!b.overdue && !b.cancelAtPeriodEnd && A.plan?.plan !== 'enterprise') btn('Change plan', 'btn-gold', async () => planForm());
-    btn('Update payment method', 'btn-ghost', async () => { const r = await api('POST', '/api/account/portal'); location.href = r.url; });
+    if (b.hasCard) btn('Update payment method', 'btn-ghost', async () => { const r = await api('POST', '/api/account/portal'); location.href = r.url; });
     if (b.cancelAtPeriodEnd) btn('Keep my subscription', 'btn-gold', async () => { await api('POST', '/api/account/resume'); A = await api('GET', '/api/account'); overview(); toast(T('Your subscription will continue.')); });
     else btn('Cancel subscription', 'btn-danger', async () => {
       if (!confirm(T('Cancel your subscription?') + '\n\n' + T('You keep access until {date}. After that, your company account and ALL of its data (officers, sites, reports, messages) are permanently deleted.', { date: fDate(b.periodEnd) }))) return;

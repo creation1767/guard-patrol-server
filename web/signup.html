@@ -49,10 +49,10 @@
     </div>
     <p class="hint dim small" style="margin-top:8px">4–8 digits. You'll sign in to the phone app with your company code, badge 1000 and this PIN.</p>
     <div class="field"><label for="ref">Referred by (optional)</label><input id="ref" name="ref" maxlength="60" autocomplete="off" translate="no" placeholder="Their company code"><p class="hint">If another security company told you about us, enter their company code.</p></div>
-    <label class="check"><input type="checkbox" id="agree" required><span>I agree to the <a href="/terms" target="_blank">Terms</a> and <a href="/privacy" target="_blank">Privacy Policy</a>, including automatic monthly payments once the free trial ends, and that our company data is deleted when the subscription ends or a payment is more than 15 days overdue.</span></label>
+    <label class="check"><input type="checkbox" id="agree" required><span>I agree to the <a href="/terms" target="_blank">Terms</a> and <a href="/privacy" target="_blank">Privacy Policy</a>, including automatic monthly payments once I add a card and the free trial ends, and that our company data is deleted when the subscription ends, a payment is more than 15 days overdue, or the trial ends and no card is added within 15 days.</span></label>
     <div class="alert err" id="err" hidden></div>
     <div class="form-actions"><button class="btn btn-gold btn-big" id="go">Start my free trial</button>
-      <p class="secure"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg> Payment is handled by Stripe. Card details never touch our servers.</p></div>
+      <p class="secure"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg> No card needed to start. Payments are handled by Stripe; card details never touch our servers.</p></div>
   </form>
   <aside class="card hl summary panel">
     <span class="eyebrow">Order summary</span>
@@ -65,7 +65,7 @@
     <div class="line" data-trial><span class="muted">Free trial</span><span>14 days</span></div>
     <div class="line" data-trial><span class="muted">After the trial</span><span><span id="sumThen">$199.00</span> / month</span></div>
     <div class="line total"><span>Due today</span><span id="sumDue">$0.00</span></div>
-    <p class="dim small" style="margin-top:14px" data-trial>Your card is saved securely and first charged when the trial ends. Cancel anytime before then and you pay nothing.</p>
+    <p class="dim small" style="margin-top:14px" data-trial>No card needed. Add one from your account before the trial ends to keep going. Nothing is charged during the trial.</p>
     <p class="dim small" style="margin-top:14px" data-notrial hidden>Charged automatically every month. Cancel anytime from your account page.</p>
   </aside>
 </div></main>

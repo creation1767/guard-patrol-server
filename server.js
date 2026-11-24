@@ -25,6 +25,8 @@
  *   PRICE_STARTER / PRICE_PRO / PRICE_BUSINESS   monthly plan prices in cents (defaults 9900 / 19900 / 34900)
  *   GRACE_DAYS        days after a missed payment before the company is deleted (default 15)
  *   TRIAL_DAYS        free trial for new companies, in days (default 14; 0 turns it off). One trial per email address.
+ *                     No card is needed to start a trial. If no card is added by the end, Stripe pauses the subscription,
+ *                     officers can't start new shifts, and the company is deleted GRACE_DAYS later unless a card is added.
  *   PUBLIC_URL        public address of this server (default: worked out from each request)
  *   SEED_DEMO_SITES   "false" to start the owner company with no sites
  *   ALLOWED_ORIGINS   extra CORS origins for the API (the Android and iPhone apps' origins are always allowed)
@@ -309,6 +311,7 @@ const H = {
     if ((cur ? cur.userId : d.userId) !== u.id) fail(403, 'You can only record your own shifts');
     // Officers check in only at their assigned site (supervisors and the administrator may cover any site).
     if (!cur && u.role === 'guard' && str(d.siteId, 80) !== u.siteId) fail(403, 'You can only check in at your assigned site');
+    if (!cur && C.billing?.status === 'paused') fail(402, PAUSED_MSG);
     const s = cur || { id, userId: u.id, track: [] };
     Object.assign(s, {
       siteId: str(d.siteId, 80), inAt: num(d.inAt), inGeo: geo(d.inGeo), inFence: str(d.inFence, 20), offsiteReason: str(d.offsiteReason, 300),
@@ -489,13 +492,16 @@ const billingOf = (sub, prev = {}) => {
   const inv = sub.latest_invoice && typeof sub.latest_invoice === 'object' ? sub.latest_invoice : null;
   return { customer: typeof sub.customer === 'string' ? sub.customer : sub.customer?.id, subscription: sub.id, status: sub.status,
     periodEnd: sub.current_period_end ? sub.current_period_end * 1000 : null, trialEnd: sub.status === 'trialing' && sub.trial_end ? sub.trial_end * 1000 : null, cancelAtPeriodEnd: !!sub.cancel_at_period_end,
+    hasCard: !!sub.default_payment_method, trialEndedAt: sub.trial_end ? sub.trial_end * 1000 : null,
     cancelReason: sub.cancellation_details?.reason || null,
     payUrl: inv && inv.status === 'open' ? inv.hosted_invoice_url || null : null,
     invoiceDueAt: inv && inv.status === 'open' ? (inv.due_date || inv.period_end || inv.created) * 1000 : null,
     dueSince: prev.dueSince || null, deleteAt: prev.deleteAt || null, checkedAt: Date.now() };
 };
 // A payment is overdue while the subscription is past due / unpaid, or Stripe cancelled it because payment failed.
-const OVERDUE = b => ['past_due', 'unpaid'].includes(b.status) || (b.status === 'canceled' && b.cancelReason === 'payment_failed');
+// A trial that ended without a card is paused by Stripe and counts the same way, from the day the trial ended.
+const PAUSED_MSG = "Your company's free trial has ended. Your administrator needs to add a card on the website to turn the account back on.";
+const OVERDUE = b => ['past_due', 'unpaid', 'paused'].includes(b.status) || (b.status === 'canceled' && b.cancelReason === 'payment_failed');
 const ENDED = ['canceled', 'incomplete_expired'];
 // Completes a paid sign-up exactly once: creates the company and its administrator.
 async function completeSignup(p) {
@@ -504,6 +510,10 @@ async function completeSignup(p) {
   if (cs.client_reference_id !== p.id || cs.status !== 'complete' || !cs.subscription) return null;
   const sub = typeof cs.subscription === 'string' ? await stripe('GET', `/v1/subscriptions/${cs.subscription}`) : cs.subscription;
   if (!['active', 'trialing'].includes(sub.status)) return null;
+  return finishSignup(p, sub);
+}
+// Creates the company and its administrator for a sign-up whose subscription exists (paid, or a card-free trial).
+function finishSignup(p, sub) {
   if (p.companyId && S.companies[p.companyId]) return S.companies[p.companyId];
   const C = createCompany({ name: p.companyName, adminName: p.adminName, email: p.email, pinHash: p.pinHash, username: p.username, pwHash: p.pwHash, billing: billingOf(sub) });
   C.lang = p.lang || 'en'; C.plan = PLANS[p.plan] ? p.plan : 'starter';
@@ -512,7 +522,7 @@ async function completeSignup(p) {
   // Tell the owner company about every new customer, and who referred them (referral credits are applied automatically after their first payment).
   const O = S.companies[OWNER_ID];
   if (O && O !== C) O.messages.push({ id: 'm' + crypto.randomUUID(), channel: 'admin', from: 'system', fromName: 'System', system: true, at: Date.now(), srvAt: clock(),
-    text: `New company signed up: ${C.name} (${C.code}) · ${PLANS[C.plan]?.name || C.plan} plan${p.trial ? ', free trial' : ''}${p.ref ? ` · referred by ${p.ref}` : ''}` });
+    text: `New company signed up: ${C.name} (${C.code}) · ${PLANS[C.plan]?.name || C.plan} plan${p.trial ? ', free trial (no card yet)' : ''}${p.ref ? ` · referred by ${p.ref}` : ''}` });
   p.companyId = C.id; delete p.pinHash; delete p.pwHash; flush();
   return C;
 }
@@ -522,7 +532,7 @@ async function refreshBilling(C) {
   const b = C.billing = billingOf(sub, C.billing);
   if (OVERDUE(b)) {
     // The grace period counts from the scheduled payment date (the date of the unpaid invoice).
-    if (!b.dueSince) b.dueSince = Math.min(b.invoiceDueAt || Date.now(), Date.now());
+    if (!b.dueSince) b.dueSince = Math.min((b.status === 'paused' ? b.trialEndedAt : b.invoiceDueAt) || Date.now(), Date.now());
     b.deleteAt = b.dueSince + GRACE_MS; save();
     if (Date.now() >= b.deleteAt) deleteCompany(C, `payment ${Math.round(GRACE_MS / 86400000)} days overdue`);
     return;
@@ -924,26 +934,38 @@ async function route(req, res) {
     if (ref && !companyByCode(ref)) fail(400, `We couldn't find a company with the code ${ref}. Check the code or leave it blank.`);
     failed(key, 10, 60); // at most 10 checkout attempts per hour from one address
     const price = await monthlyPrice(plan);
-    // Free trial: the card is saved now and first charged when the trial ends. One trial per email address.
+    // Free trial: no card needed. The company is created straight away; the owner adds a card from their account
+    // before the trial ends. One trial per email address; a second sign-up with the same email pays through Checkout.
     const trial = TRIAL_DAYS > 0 && !S.trialUsed.includes(email.toLowerCase());
     const id = 'p' + crypto.randomUUID().replace(/-/g, '');
     const base = baseUrl(req);
+    const meta = { pending: id, company: companyName, plan, ...(ref ? { referred_by: ref } : {}) };
+    if (trial) {
+      const cust = await stripe('POST', '/v1/customers', { email, name: companyName, metadata: { ...meta, admin: adminName } }, `signup-customer-${id}`);
+      const sub = await stripe('POST', '/v1/subscriptions', {
+        customer: cust.id, items: [{ price }], trial_period_days: TRIAL_DAYS, metadata: meta,
+        trial_settings: { end_behavior: { missing_payment_method: 'pause' } },
+        payment_settings: { save_default_payment_method: 'on_subscription' }
+      }, `signup-subscription-${id}`);
+      const pend = S.pending[id] = { id, sessionId: null, companyName, adminName, email, pinHash: hashPin(pin), username, pwHash: hashPin(password), lang: str(b.lang, 8), plan, trial, ref, createdAt: Date.now() };
+      finishSignup(pend, sub);
+      return send(res, 200, { url: `${base}/signup/success?ref=${id}`, trial });
+    }
     const cs = await stripe('POST', '/v1/checkout/sessions', {
       mode: 'subscription', line_items: [{ price, quantity: 1 }], client_reference_id: id, customer_email: email,
       success_url: `${base}/signup/success?session_id={CHECKOUT_SESSION_ID}`, cancel_url: `${base}/signup?canceled=1`,
       locale: STRIPE_LOCALES[str(b.lang, 8)] || 'auto',
-      metadata: { pending: id, company: companyName, plan, ...(ref ? { referred_by: ref } : {}) },
-      subscription_data: { metadata: { pending: id, company: companyName, plan, ...(ref ? { referred_by: ref } : {}) }, ...(trial ? { trial_period_days: TRIAL_DAYS } : {}) }
+      metadata: meta, subscription_data: { metadata: meta }
     });
     S.pending[id] = { id, sessionId: cs.id, companyName, adminName, email, pinHash: hashPin(pin), username, pwHash: hashPin(password), lang: str(b.lang, 8), plan, trial, ref, createdAt: Date.now() };
     save();
     return send(res, 200, { url: cs.url, trial });
   }
   if (req.method === 'GET' && p === '/api/signup/complete') {
-    const sid = str(url.searchParams.get('session_id'), 300);
-    const pend = Object.values(S.pending).find(x => x.sessionId === sid);
+    const sid = str(url.searchParams.get('session_id'), 300), pref = str(url.searchParams.get('ref'), 80);
+    const pend = pref ? S.pending[pref] : sid ? Object.values(S.pending).find(x => x.sessionId === sid) : null;
     if (!pend) fail(404, 'We could not find this sign-up. If you were charged, contact support.');
-    const C = await completeSignup(pend);
+    const C = pend.sessionId ? await completeSignup(pend) : S.companies[pend.companyId];
     if (!C) return send(res, 202, { pending: true });
     const adm = C.users.find(u => u.role === 'admin');
     return send(res, 200, { company: publicCompany(C), badge: adm?.badge || '1000', adminName: adm?.name, username: adm?.username || '' });
@@ -1002,7 +1024,7 @@ async function route(req, res) {
     const now = clock();
     const sup = isSup(me), admin = isAdmin(me);
     return send(res, 200, {
-      now, me: publicUser(me), company: publicCompany(C),
+      now, me: publicUser(me), company: publicCompany(C), paused: C.billing?.status === 'paused',
       users: C.users.map(publicUser),
       sites: C.sites,
       messages: C.messages.filter(m => m.srvAt > since && canSeeMsg(m, me)).slice(-1000),
@@ -1042,7 +1064,7 @@ async function route(req, res) {
       try { await refreshBilling(C); } catch (e) { }
       if (!S.companies[C.id]) fail(410, 'This subscription has ended and the company account was removed.');
       return send(res, 200, { company: { ...publicCompany(C), createdAt: C.createdAt, email: C.email || '' }, me: { ...publicUser(me), username: me.username || '', hasPassword: !!me.pwHash },
-        billing: C.owner ? { status: 'owner' } : C.billing ? { status: C.billing.status, periodEnd: C.billing.periodEnd, cancelAtPeriodEnd: C.billing.cancelAtPeriodEnd, trialEnd: C.billing.trialEnd || null,
+        billing: C.owner ? { status: 'owner' } : C.billing ? { status: C.billing.status, periodEnd: C.billing.periodEnd, cancelAtPeriodEnd: C.billing.cancelAtPeriodEnd, trialEnd: C.billing.trialEnd || null, hasCard: !!C.billing.hasCard,
           overdue: OVERDUE(C.billing), dueSince: C.billing.dueSince, deleteAt: C.billing.deleteAt, payUrl: C.billing.payUrl } : { status: 'none' },
         graceDays: Math.round(GRACE_MS / 86400000),
         price: limitsOf(C).price, plan: limitsOf(C), plans: publicPlans(),
@@ -1081,6 +1103,29 @@ async function route(req, res) {
       await switchPrice(C, await monthlyPrice(P.id));
       C.plan = P.id; save();
       return send(res, 200, { ok: true, plan: limitsOf(C) });
+    }
+    // Add a card (needed to keep a free trial running, or to turn a paused trial back on): Stripe Checkout in setup mode.
+    if (req.method === 'POST' && p === '/api/account/card') {
+      const base = baseUrl(req);
+      const cs = await stripe('POST', '/v1/checkout/sessions', { mode: 'setup', customer: C.billing.customer, currency: 'usd',
+        success_url: `${base}/account?card_session={CHECKOUT_SESSION_ID}`, cancel_url: `${base}/account`,
+        locale: STRIPE_LOCALES[C.lang] || 'auto', setup_intent_data: { metadata: { company: C.code } } });
+      return send(res, 200, { url: cs.url });
+    }
+    // Back from Checkout: make the new card the subscription's payment method; a paused trial restarts and is charged now.
+    if (req.method === 'POST' && p === '/api/account/card-done') {
+      const b = await readJson(req);
+      const cs = await stripe('GET', `/v1/checkout/sessions/${encodeURIComponent(str(b.sessionId, 300))}`, { expand: ['setup_intent'] });
+      if (cs.mode !== 'setup' || cs.customer !== C.billing.customer || cs.status !== 'complete') fail(400, 'We could not find that card. Please try again.');
+      const si = cs.setup_intent, pm = si && (typeof si.payment_method === 'string' ? si.payment_method : si.payment_method?.id);
+      if (!pm) fail(400, 'We could not find that card. Please try again.');
+      await stripe('POST', `/v1/customers/${encodeURIComponent(C.billing.customer)}`, { invoice_settings: { default_payment_method: pm } });
+      let sub = await stripe('POST', `/v1/subscriptions/${encodeURIComponent(C.billing.subscription)}`, { default_payment_method: pm });
+      if (sub.status === 'paused') sub = await stripe('POST', `/v1/subscriptions/${encodeURIComponent(sub.id)}/resume`, { billing_cycle_anchor: 'now' }, `resume-${sub.id}-${pm}`);
+      C.billing = billingOf(sub, C.billing);
+      try { await refreshBilling(C); } catch (e) { }
+      save();
+      return send(res, 200, { ok: true, status: C.billing.status });
     }
     if (req.method === 'POST' && p === '/api/account/portal') {
       const ps = await stripe('POST', '/v1/billing_portal/sessions', { customer: C.billing.customer, return_url: `${baseUrl(req)}/account` });
